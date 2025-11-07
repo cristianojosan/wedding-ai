@@ -1,0 +1,5 @@
+include:
+  - rules/00_common.yaml
+  - rules/01_venue.yaml
+  - rules/02_music.yaml
+  - rules/03_photo_video.yaml

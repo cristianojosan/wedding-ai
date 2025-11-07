@@ -1,0 +1,99 @@
+compare:
+  venue:
+    version: 1.0
+    intent: "Explain & Compare Mode for venue options (Good / Better / Best). Keys in EN, messages in RO."
+
+    criteria:
+      - key: capacity_fit
+        label_ro: "Potrivire capacitate"
+        explain_ro: "Cât de bine se potrivește capacitatea sălii cu numărul vostru de invitați. ~85–107% arată plin și echilibrat; sub 85% pare goală; peste 107% devine incomod."
+        measures: "ratio invitați/capacitate → level: low/medium/high + mesaje (goală/ideal/strânsă)."
+        data_source: "rules_venue.capacity_fit + venue.capacity + guests.total"
+
+      - key: menu_quality
+        label_ro: "Calitate meniu"
+        explain_ro: "Număr feluri, diversitate proteine, opțiuni dietare, gustare de noapte, degustare și plating. Ținem cont și de raportul calitate/preț (‘value’)."
+        measures: "score 0–100 + value (calitate/preț)."
+        data_source: "rules_venue.menu_quality + pricing.price_per_person"
+
+      - key: dancefloor_fit
+        label_ro: "Ring de dans"
+        explain_ro: "Potrivirea ringului cu stilul evenimentului. Pentru petreceri energice vizăm ring ≥ ~40 m²."
+        measures: "dancefloor_size vs party_energy → level: low/medium/high."
+        data_source: "venue.dancefloor_size + conversational.party_energy"
+
+      - key: candybar_quality
+        label_ro: "Candy bar"
+        explain_ro: "Dacă există, evaluăm numărul de articole, varietatea categoriilor, elementele premium, cantitatea/guest și replenishment."
+        measures: "score 0–100 (0 dacă lipsește)."
+        data_source: "rules_venue.candybar_quality"
+
+      - key: curfew_impact
+        label_ro: "Ora-limită (curfew)"
+        explain_ro: "Cât de devreme se închide muzica. Curfew ‘late’ ajută dacă vă doriți petrecere lungă."
+        measures: "curfew time → level: early/normal/late."
+        data_source: "venue.curfew + rules_venue.program_and_curfew"
+
+      - key: distance_convenience
+        label_ro: "Distanță / acces"
+        explain_ro: "Cât de departe e sala față de orașul preferat sau raza acceptată. Uneori, o sală puțin mai departe aduce avantaje reale."
+        measures: "drive distance/time → band: aproape/mediu/departe + flag cross_city_suggested."
+        data_source: "venue.location + user.preferred_city + search.radius"
+
+      - key: min_guarantee_policy
+        label_ro: "Minim garantat"
+        explain_ro: "Dacă sala cere să plătiți un număr minim de locuri (ex. 150), chiar dacă invitații sunt mai puțini."
+        measures: "has_min (yes/no) + value (ex. 150) + delta față de invitați."
+        data_source: "pricing.min_guarantee_guests + guests.total"
+
+    levels:
+      good:
+        message_ro: "Se potrivește corect: sală echilibrată pentru numărul de invitați, meniu bun, fără pretenții extra."
+        thresholds:
+          capacity_fit.level: [medium, high]         # în bandă ideală sau aproape de ea
+          menu_quality.min: 55                       # din 100
+          dancefloor_fit.level: [medium]             # ok pentru petrecere clasică
+          candybar_quality.min_or_absent: 40         # 40+ sau inexistent contează ca neutru
+          curfew_impact.level: [normal, late]        # să nu taie petrecerea devreme
+          distance_convenience.band: [aproape, mediu]
+          min_guarantee_policy.delta_max: 10         # plătiți max ~10 locuri peste invitați (orientativ)
+
+      better:
+        add_ro: "Mai multă valoare: meniu mai bogat sau ring mai generos; condiții per ansamblu mai prietenoase."
+        thresholds:
+          capacity_fit.level: [high]                 # în miezul benzii ideale
+          menu_quality.min_or_value: 70              # 70+ sau value bun (calitate/preț)
+          dancefloor_fit.level: [high]               # potrivit pentru energie/dans
+          candybar_quality.min: 55                   # sau opțional premium
+          curfew_impact.level: [late]                # music-friendly
+          distance_convenience.band: [aproape, mediu]
+          min_guarantee_policy.delta_max: 5          # cost ascuns minim
+
+      best:
+        add_ro: "Top în clasa ei: meniu premium + ring generos; limitări minime; experiență ‘wow’."
+        thresholds:
+          capacity_fit.level: [high]                 # perfect încadrat
+          menu_quality.min_or_premium: 85            # 85+ sau premium justificat
+          dancefloor_fit.level: [high]               # ring ≥ ~40 m² pentru petrecere energică
+          candybar_quality.min_with_premium: 70      # premium + replenishment
+          curfew_impact.level: [late]                # se stă mult
+          distance_convenience.band: [aproape, mediu, departe_if_worth]  # ‘merită drumul’
+          min_guarantee_policy.flexible_or_delta_max: 0-3                # flexibil sau aproape zero delta
+
+    upgrade_rules:
+      - when_ro: "Dacă vă doriți petrecere energică și ringul iese ‘mediu’, trecem la o opțiune cu ring mai mare (≥ ~40 m²)."
+        suggest_level: "Good → Better / Best"
+      - when_ro: "Dacă meniul dorit include mai multe feluri/diversitate, iar opțiunea curentă e doar ‘corectă’, urcăm pe o sală cu MenuQuality mai mare."
+        suggest_level: "Good → Better"
+      - when_ro: "Dacă ora-limită taie petrecerea devreme și vreți să stați mai mult, alegem o opțiune cu curfew ‘late’."
+        suggest_level: "Better → Best (unde posibil)"
+      - when_ro: "Dacă minimul garantat vă împinge costul peste invitați (ex. 140 invitați vs 150 minim), căutăm o sală cu minim mai mic sau mai flexibil."
+        suggest_level: "Orice nivel → alternativa cu delta mai mică"
+
+    sample_messages_ro:
+      - "Varianta B costă mai mult deoarece are meniu mai bogat (mai multe feluri + opțiuni dietare) și ring mai generos pentru dans."
+      - "Opțiunea C e puțin mai departe de oraș, dar oferă meniu premium și ring mare — merită drumul dacă vă doriți petrecere energică."
+      - "La sala A există minim garantat de 150 locuri; cu 140 invitați veți plăti la nivelul de 150 — varianta B evită acest cost."
+      - "Sala B are oră-limită mai prietenoasă pentru muzică; dacă vreți petrecere lungă, este alegerea mai sigură."
+      - "Candy barul la opțiunea C e premium (varietate + replenishment); dacă aspectul vizual contează, acesta ridică experiența."
+      - "Diferența de preț vine din calitatea meniului și condițiile logistice (ring, curfew); restul criteriilor sunt similare."

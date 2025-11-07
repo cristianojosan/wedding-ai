@@ -1,0 +1,463 @@
+# taxonomy.yaml — Wedding AI (v1.0)
+# Canonical keys (ENG) folosite în: rules.yaml, vendors.json, UI, prompturi.
+# Mesajele către utilizator rămân în RO/RU; logica/cheile sunt în ENG.
+
+meta:
+  version: "1.8"
+  language: "en_canonical"
+  notes: "Use these keys everywhere. Add extensions under `extensions:*` if needed."
+
+# -------------------------
+# Core categories
+# -------------------------
+
+# -------------------------
+# Conversational Behavior
+# -------------------------
+
+# -------------------------
+# Capacity Fit
+# -------------------------
+capacity_fit:
+  user_message:
+    capacity:
+      under: "Sala este prea mică pentru numărul de invitați."
+      ideal: "Sala este potrivită pentru evenimentul vostru."
+      over: "Sala este prea mare pentru evenimentul vostru."
+
+conversational_behavior:
+  detect_city_soft: true
+  allow_cross_city: true
+  user_message:
+    greeting: "Bun venit! Spune-mi unde ai vrea să fie nunta ta."
+    cross_city_notice: "Am inclus și câteva opțiuni din orașele apropiate."
+    capacity_hint: "Verificăm capacitatea potrivită pentru numărul de invitați."
+
+categories:
+  - venue        # sala
+  - music
+  - photo
+  - video
+  - photo_video  # team combo
+  - decor
+  - fx           # special effects
+  - transport
+  - attire       # dress & suit
+  - cake
+  - stationery
+  - bar
+  - dancers
+  - photobooth
+
+# -------------------------
+# Global canonical fields
+# -------------------------
+vendor_schema:
+  identity:
+    - name
+    - city
+    - region
+    - rating            # 0..5
+    - reviews_count
+    - years_experience
+  packages:
+    - name
+    - price_eur
+    - hours
+    - inclusions[]      # strings
+    - addons[]          # strings
+    - urgency_fee
+  policies:
+    - deposit_pct
+    - cancel_window_days
+    - payment_methods[] # cash/card/bank
+  scoring:
+    - professional      # 0..100
+    - compatibility     # 0..100
+    - price_value_ratio          # efficiency ratio between value and price
+  compat:
+    - outdoor_ready         # bool (echipamente protejate pentru outdoor)
+    - loud_profile 
+  compat: []            # booleans or enums per category (see below)
+  capabilities: {}      # category-specific (see below)
+
+# -------------------------
+# Common boolean keys
+# -------------------------
+bool_keys:
+  - has_garden
+  - has_terrace
+  - has_stage
+  - has_parking
+  - has_dancefloor
+  - has_outdoor_area
+  - has_accomodation
+  - has_generator
+  - has_air_conditioning
+  - allows_heavy_smoke
+  - allows_cold_spark
+  - allows_external_bar
+  - allows_outdoor_fireworks
+  - has_sound_limit
+
+# -------------------------
+# Unit / numeric suffix conventions
+# -------------------------
+unit_keys:   # use these suffixes to keep meaning clear
+  - distance_km
+  - deposit_pct
+  - price_eur
+  - area_sqm
+  - power_kw
+  - guests_min
+  - guests_max
+  - included_km
+  - price_per_km_eur
+  - time_min
+
+# -------------------------
+# Enums by domain
+# -------------------------
+enums:
+  music_types: [dj, band, orchestra, singer, dj_mc, singer_dj, singer_dj_mc]
+  fx_types: [heavy_smoke, cold_spark, fireworks_outdoor, lights_show]
+  transport_types: [t1_car, t2_bus, t3_combo]
+  attire_types: [bride_dress, groom_suit, combo_studio]
+  stationery_items: [invitation, menu, place_card, table_number, seating_chart, thank_you_card]
+  bar_types: [mobile_bar, classic_bar, cocktail_bar, mocktail_bar]
+  dancers_styles: [first_dance_coaching, show_modern, show_folk, interactive_show]
+  photobooth_types: [open_air, mirror, 360, caravan]
+  photo_styles: [classic, candid, editorial, moody, bright_airy]
+  video_styles: [documentary, cinematic, highlights]
+  show_density: [low, medium, high]
+  event_size: [small, medium, large]
+
+# -------------------------
+# Category-specific canonical fields
+# -------------------------
+  weather_risk: [low, medium, high]
+  decor_volume: [small, medium, full]
+venue:
+  fields:
+    - capacity_max
+    - capacity_min
+    - distance_km
+    - has_garden
+    - has_terrace
+    - has_stage
+    - has_parking
+    - has_accomodation
+    - has_dancefloor
+    - has_outdoor_area
+    - has_sound_limit
+    - allows_heavy_smoke
+    - allows_cold_spark
+    - allows_outdoor_fireworks
+    - allows_candles
+    - has_ceremony_space
+    - decor_included
+    - decor_extra
+  derived_fields:
+      capacity_fit.level:
+        type: enum
+        values: [low, medium, high]
+        description: "Nivel derivat din raportul invitați/capacitate, folosit pentru comparații (goală/ideal/strânsă)."
+      dancefloor_fit.level:
+        type: enum
+        values: [low, medium, high]
+        description: "Nivel de potrivire a ringului cu stilul petrecerii (energetic/liniștit)."
+      curfew_impact.level:
+        type: enum
+        values: [early, normal, late]
+        description: "Nivel derivat din ora-limită pentru muzică (impact petrecere)."
+      distance_convenience.band:
+        type: enum
+        values: [aproape, mediu, departe]
+        description: "Bandă derivată din distanța față de orașul preferat (în km sau minute condus)."
+      min_guarantee_policy.value:
+        type: integer
+        description: "Valoare numerică a minimului garantat de locuri, dacă există (ex. 150)."
+      cross_city_suggested:
+        type: boolean
+        description: "Flag UI – sala este recomandată în afara orașului preferat, dar cu avantaje semnificative."
+  pricing:
+    - price_per_person_eur
+    - fixed_fee_eur
+    - min_guarantee_guests
+  cuisine:
+    - kitchen_inhouse   # bool
+    - tasting_available # bool
+
+menu_quality:
+  inputs:
+    - courses_count
+    - protein_diversity
+    - dietary_options
+    - late_snack
+    - tasting_available
+    - food_rating
+    - plating_level
+    - price_per_person
+    - menus_available
+
+music:
+  fields:
+    - type              # enums.music_types
+    - has_mc            # bool
+    - band_members      # int (if band)
+    - repertoire        # string/list
+    - setup_time_min    # numeric
+    - sound_power_kw    # numeric
+  compat:
+    - has_sound_limit   # inherited from venue
+
+photo:
+  fields:
+    - style             # enums.photo_styles
+    - hours
+    - second_shooter    # bool
+    - drone_available   # bool
+    - raw_delivery      # bool
+    - edited_photos_count
+  deliverables:
+    - online_gallery    # bool
+    - album_included    # bool
+
+video:
+  fields:
+    - style             # enums.video_styles
+    - hours
+    - drone_available   # bool
+    - teaser_minutes
+    - full_movie_minutes
+    - raw_footage       # bool
+  deliverables:
+    - usb_delivery      # bool
+    - online_link       # bool
+
+photo_video:
+  fields:
+    - team_combo        # bool
+    - hours
+    - drone_available
+    - team_years_experience      # number of years team has worked together
+    - team_events_per_year       # average weddings/year handled by team
+   # bool
+  deliverables:
+    - bundle_discount_pct
+    - delivery_times_combined    # unified average turnaround (photo+video)
+
+
+decor:
+  zones:   # standard D# zones (Z1..Z12)
+    - tables_guests        # Z1
+    - head_table           # Z2
+    - entrance_arch        # Z3
+    - ceiling              # Z4
+    - stage_dancefloor     # Z5
+    - terrace_garden       # Z6
+    - photo_corner         # Z7
+    - hall_foyer           # Z8
+    - church_outdoor_ceremony # Z9
+    - bridal_car           # Z10
+    - chairs_covers_bows   # Z11
+    - candy_bar            # Z12
+  materials:
+    natural_flowers: [rose, peony, orchid, chrysanthemum, daffodil, tulip, hydrangea, gerbera]
+    artificial_flowers: [rose_artificial, peony_synthetic, tulip_artificial]
+    fabrics: [velvet, satin, silk, tulle, linen]
+    structures: [metal_frame, wood_frame, acrylic, mirror]
+    lighting: [warm_led, ambient, stage]
+    accessories: [candles, crystals, mirrors, balloons, initials]
+  fields:
+    - personalization_level   # enum: standard, semi_custom, full_custom
+    - transport_included_city # bool
+    - setup_included          # bool
+    - teardown_included       # bool
+
+  inputs:
+    optional:
+      - weather_risk  # enum: low|medium|high (outdoor risk evaluation)
+      - inclus_bouquet  # bundle: bridal bouquet + godparents flowers
+  decision_tree:
+    computed:
+      - decor_volume  # enum decor_volume: small|medium|full
+  synergies:
+    with_photo_video_FV:
+      flags:
+        - photo_friendly  # arrangement/lighting friendly for photography
+  budget:
+    pricing_model:
+      - urgency_fee  # factor applied when setup_window_hours under threshold
+candybar_quality:
+  inputs:
+    - available
+    - variants_count
+    - items_count
+    - categories_count
+    - premium_elements_count
+    - quantity_per_guest
+    - replenishment
+
+fx:
+  fields:
+    - type                # enums.fx_types
+    - indoor_safe         # bool
+    - operator_required   # bool
+    - duration_min
+  compat:
+    requires_venue_allows_heavy_smoke: false   # bool, map la venue.allows_heavy_smoke
+    requires_venue_allows_cold_spark: false    # bool, map la venue.allows_cold_spark
+    safety_distance_m: 0                        # int, min distance pt. cold_spark/fireworks
+    permits_required: false                     # bool, necesar pt. fireworks_outdoor
+    permit_lead_days: 0                         # int, zile minime pt. permis
+    weather_risk: enums.weather_risk                  # enum ref: low|medium|high (din enums)
+    noise_curfew_time: "22:00"                  # string HH:MM
+  extensions:
+    show_density: enums.show_density
+  effects_catalog:
+    - heavy_smoke
+    - cold_spark
+    - fireworks_outdoor
+    - lights_show
+
+  rules:
+    compatibility: {}   # placeholder pentru metadate/aliasuri de compatibilitate
+
+  scoring:
+    # placeholder: dacă vrei ponderi specifice FX aici (altfel rămâi pe scoring global)
+    - compatibility_weight
+    - visual_impact_weight
+    - reliability_weight
+    - synergy_weight
+    - price_value_weight
+
+effects_and_lighting:
+  interpret:
+    - laser_light
+    - decorative_lighting
+    - sound_system
+    - dj_booth
+
+transport:
+  fields:
+    - type                # enums.transport_types
+    - seats               # int (for buses/vans)
+    - included_km
+    - driver_included     # bool
+  pricing:
+    - name: base_price_eur
+      type: float
+    - name: price_per_km_eur
+      type: float
+    - name: ac_included
+      type: bool
+      description: Indică dacă aerul condiționat este inclus în prețul de bază al transportului.
+      default: false
+    - name: ac_fee_eur_fixed
+      type: float
+      description: Taxă fixă suplimentară pentru aer condiționat, stabilită de furnizor (nu pe oră).
+      default: 0.0
+
+  combo:
+    - bridal_car_included # bool
+    - guests_bus_count    # int
+
+attire:
+  fields:
+    - type                # enums.attire_types
+    - rental_available    # bool
+    - tailoring_included  # bool
+    - fitting_sessions    # int
+
+cake:
+  fields:
+    - tiers               # int
+    - price_per_kg_eur
+    - tasting_available   # bool
+    - delivery_included   # bool
+
+stationery:
+  fields:
+    - items[]             # enums.stationery_items
+    - design_custom       # bool
+    - print_finish        # string (matte, glossy, textured)
+
+bar:
+  fields:
+    - type                # enums.bar_types
+    - cocktails_count     # int
+    - non_alcoholic_menu  # bool
+    - ice_included        # bool
+    - glassware_included  # bool
+
+dancers:
+  fields:
+    - styles[]            # enums.dancers_styles
+    - moments_count       # int
+    - first_dance_coaching # bool
+
+photobooth:
+  fields:
+    - type                # enums.photobooth_types
+    - props_included      # bool
+    - prints_included     # bool
+    - prints_count
+    - social_share        # bool
+
+# -------------------------
+# Optional: normalization (keep only if legacy/RO data/input exists)
+# -------------------------
+normalize:
+  category:
+    sala: "venue"
+    sală: "venue"
+    muzica: "music"
+    fotograf: "photo"
+    foto: "photo"
+    videograf: "video"
+    video: "video"
+    decoratiuni: "decor"
+    efecte: "fx"
+    transport_invitați: "transport"
+    rochie_costum: "attire"
+    papetarie: "stationery"
+    tort: "cake"
+    bar_mobil: "bar"
+    dansatori: "dancers"
+    fotocabina: "photobooth"
+  bool:
+    gradina: "has_garden"
+    terasa: "has_terrace"
+    fum_greu: "allows_heavy_smoke"
+
+# -------------------------
+# Extensions (add project-specific fields here)
+# -------------------------
+extensions: {}
+
+# -------------------------
+# General policies (global)
+# -------------------------
+general_policies:
+  cancel_policy: "Specifies refund and cancellation rules."
+  accessibility: "Indicates level of venue or service accessibility."
+
+context:
+  days_until_event: 0
+  planned_effect_time: "22:00"
+  safety_distance_available_m: 0
+  event_size: small
+  event_location: indoor
+  guests_count: 0
+
+
+# -------------------------
+# Explain & Compare Mode
+# -------------------------
+explain_compare:
+  custom_comment: "Mesaj scurt personalizat adăugat în comparații (Good–Better–Best)."
+
+ruleset_metadata:
+  keys:
+    - budget_rule  # conditional logic for recommendation threshold

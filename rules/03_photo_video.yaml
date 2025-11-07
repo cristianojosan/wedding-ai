@@ -1,0 +1,284 @@
+# ===============================================
+#  CATEGORY: Photo & Video (F#, V#, FV#)
+# ===============================================
+
+F#:
+  category: "Photographer"
+  decision_inputs:
+    required:
+      - event_date_or_range
+      - locations # biserica / sedinta / sala + adrese + timpi transfer
+      - guests_count
+      - photo_budget # or total_FV_budget if not separate
+      - photo_style_preferred # documentar | editorial | traditional | moody | luminos
+      - photo.fields.hours
+      - photo_deliverables_desired # nr_imagini_editate, album, social_vertical
+      - delivery_time_photo
+      - communication_language
+      - team_preference_FV # same team or separate vendors
+      - privacy_policies # no-share, RAW on request, GDPR/minors
+    optional:
+      - style_examples # links/images
+  hard_filters:
+    - available_on_date
+    - covers_area_and_travel
+    - capacity_hours_and_multi_location
+    - venue_rules_and_legal # e.g. church no flash/tripod
+    - budget_rule: "nu recomanda > +25% peste buget tinta decat daca scor_final >= 85"
+  rating_weights: # total 100
+    venue_recommendations: 30
+    years_experience: 20
+    events_per_year: 15
+    package_quality_and_deliverables: 15
+    delivery_time_photo: 10
+    price_value_ratio: 10
+  scoring_guidelines:
+    venue_recommendations:
+      thresholds:
+        good: ">= 1 sala"
+        very_good: ">= 3 sali"
+      note: "Principalul indicator la inceput."
+    years_experience:
+      scale: "1-3 incepator; 4-7 mediu; 8+ profesionist"
+    events_per_year:
+      scale: "10-15 activ; 20+ foarte_solicitat"
+    delivery_time_photo:
+      scale: "<= 1.5 luni excelent; 2-3 luni standard; 4+ luni lent"
+    package_quality_and_deliverables:
+      signals:
+        - album_included
+        - consistent_editing
+        - online_gallery
+        - album_layout_and_revisions_included
+        - backup_and_failover
+    price_value_ratio:
+      description: "mult in pachet la pret moderat => scor bun"
+  levels_labels:
+    - range: "85-100"
+      level: "⭐ Top recomandat"
+      ai_label: "Foarte solicitat si apreciat"
+    - range: "70-84"
+      level: "👍 Profesionist stabil"
+      ai_label: "Recomandat des de sali"
+    - range: "50-69"
+      level: "⚙️ Mediu"
+      ai_label: "Oferta echilibrata, experienta moderata"
+    - range: "<50"
+      level: "🌱 In crestere"
+      ai_label: "Fotograf nou sau cu putine recomandari"
+  outputs_explain_compare_axes:
+    - Style
+    - video.fields.hours
+    - Deliverables # album, nr foto, social
+    - Delivery_time
+    - Venue_recommendations
+    - Experience # years + events/year
+    - Price_value_ratio
+  recommendation_strategy:
+    good_better_best: true
+    note: "Propune 3 optiuni (Good/Better/Best) in functie de stil, nivel si buget."
+
+V#:
+  version: 1.0
+  category: "Videographer"
+  decision_inputs:
+    required:
+      - event_date_or_range
+      - locations # biserica / sedinta / sala + adrese + timpi transfer
+      - guests_count
+      - video_budget # or total_FV_budget if not separate
+      - video_style_preferred # cinematic | natural | documentar
+      - video.fields.hours
+      - operator_preference # 1_operator | 2_operatori
+      - photo.fields.drone_available
+      - after_party # yes/no
+      - video_deliverables_desired # teaser/clip_rezumat/film_complet/digital_only
+      - delivery_time_video
+      - communication_language
+      - team_preference_FV # same team or separate vendors
+      - privacy_policies # music licenses, GDPR/minors
+  hard_filters:
+    - available_on_date
+    - covers_area_and_travel
+    - capacity_hours_and_multi_location
+    - venue_rules_and_legal # drone NFZ/license/insurance; church restrictions
+    - budget_rule: "nu recomanda > +25% peste buget tinta decat daca scor_final >= 85"
+  rating_weights: # total 100
+    venue_recommendations: 25
+    years_experience: 20
+    events_per_year: 15
+    package_complexity: 15 # full film + clip + drone + team
+    delivery_time_video: 10
+    price_value_ratio: 10
+    technical_quality_equipment: 5 # 4K/1080p, stabilizer, drone, lights, mic/recorder
+  scoring_guidelines:
+    venue_recommendations:
+      thresholds:
+        good: "1-2 sali"
+        very_good: ">= 3 sali"
+      note: "Cel mai relevant indicator local de reputatie."
+    years_experience:
+      scale: "1-3 incepator; 4-7 mediu; 8+ profesionist"
+    events_per_year:
+      scale: "10-15 activ; 20+ foarte_solicitat"
+    delivery_time_video:
+      scale: "<= 2 luni excelent; 2-3 luni standard; 4+ luni lent"
+    package_complexity:
+      signals:
+        - full_film
+        - highlights_clip
+        - drone
+        - team_2plus_operators
+    technical_quality_equipment:
+      signals:
+        - capture_4K_or_1080p_high_bitrate
+        - stabilization # gimbal/monopod/tripod
+        - audio # lavaliera + feed mixer DJ + recorder backup
+        - LOG_profile_and_grading
+        - mobile_light
+    price_value_ratio:
+      description: "pret moderat + livrabile multe = scor bun"
+  levels_labels:
+    - range: "85-100"
+      level: "⭐ Top recomandat"
+      ai_label: "Videograf profesionist, foarte solicitat"
+    - range: "70-84"
+      level: "👍 Stabil si experimentat"
+      ai_label: "Recomandat des de sali, livrare rapida"
+    - range: "50-69"
+      level: "⚙️ Mediu"
+      ai_label: "Oferta echilibrata, experienta moderata"
+    - range: "<50"
+      level: "🌱 In crestere"
+      ai_label: "Videograf nou sau cu putine recomandari"
+  outputs_explain_compare_axes:
+    - Style
+    - photo.fields.hours
+    - Deliverables # teaser, clip, full
+    - Operators # 1 vs 2
+    - Drone
+    - Delivery_time
+    - Venue_recommendations
+    - Experience # years + events/year
+    - Equipment
+    - Price_value_ratio
+  recommendation_strategy:
+    good_better_best: true
+    note: "Propune 3 optiuni (Good/Better/Best) in functie de stil, nivel, operatori si buget."
+
+FV#:
+  version: 1.0
+  category: "Photo+Video Team"
+  decision_inputs:
+    required:
+      - event_date_or_range
+      - locations # biserica / sedinta / sala + adrese + timpi transfer
+      - guests_count
+      - total_FV_budget
+      - full_team_preference # FV team or separate vendors
+      - photo.fields.drone_available # yes/no
+      - team_configuration # 1_photo+1_video vs extended_team_2plus
+      - package_album_and_clip # yes/no
+      - after_party # yes/no
+      - photo.fields.style
+      - video_style_preferred
+      - photo_video.fields.hours
+      - delivery_times_combined # photo + video
+      - communication_language
+      - privacy_policies # no-share, music licenses, GDPR/minors
+  hard_filters:
+    - available_on_date
+    - covers_area_and_travel
+    - capacity_hours_and_multi_location
+    - venue_rules_and_legal # drone NFZ/license/insurance; church restrictions
+    - budget_rule: "nu recomanda > +25% peste buget tinta decat daca scor_final >= 85"
+  rating_weights: # total 100 (aligned with V#)
+    venue_recommendations: 25
+    team_years_experience: 20
+    team_events_per_year: 15
+    package_complexity: 15 # photo+video + drone + clip + album
+    delivery_times_combined: 10 # photo + video
+    price_value_ratio: 10
+    technical_quality_equipment: 5
+  scoring_guidelines:
+    venue_recommendations:
+      thresholds:
+        good: "1-2 sali"
+        very_good: ">= 3 sali"
+      note: "Cel mai important indicator de incredere locala."
+    team_years_experience:
+      scale: "1-3 noua; 4-7 stabila; 8+ profesionistă"
+    team_events_per_year:
+      scale: "15-20 activi; 25+ foarte_solicitati"
+    delivery_times_combined:
+      scale: "<= 2 luni excelent; 2-3 luni standard; 4+ luni lent"
+    package_complexity:
+      signals:
+        - photo_and_video
+        - drone
+        - highlights_clip
+        - album
+        - extended_team
+    technical_quality_equipment:
+      signals:
+        - capture_4K_or_1080p_high_bitrate
+        - stabilization
+        - professional_audio
+        - LOG_profile_and_grading
+        - professional_lighting
+    price_value_ratio:
+      description: "pachet comun de regula 10-20% mai avantajos vs separat"
+  levels_labels:
+    - range: "85-100"
+      level: "⭐ Top echipa recomandata"
+      ai_label: "Echipa completa, foarte solicitata"
+    - range: "70-84"
+      level: "👍 Stabila si experimentata"
+      ai_label: "Recomandata des, livrare rapida"
+    - range: "50-69"
+      level: "⚙️ Medie"
+      ai_label: "Oferta buna, experienta moderata"
+    - range: "<50"
+      level: "🌱 In crestere"
+      ai_label: "Echipa noua sau cu putine recomandari"
+  explain_variants:
+    separate_vs_team:
+      variant_separate_pro:
+        - "Alegi stiluri distincte (ex: foto romantic, video cinematic)."
+      variant_separate_con:
+        - "Necesita coordonare intre echipe diferite."
+      variant_team_pro:
+        - "Sinergie pe teren; timeline sincron; un singur punct de contact."
+        - "Pret de pachet de obicei cu ~10-20% mai avantajos."
+      variant_team_con:
+        - "Stilul foto & video vine la pachet, mai putina libertate de combinare."
+  outputs_explain_compare_axes:
+    - Photo_Style
+    - Video_Style
+    - photo_video.fields.hours
+    - Deliverables # album, nr foto, teaser/clip/full
+    - Team_configuration # echipa
+    - Drone
+    - Delivery_times # photo + video
+    - Venue_recommendations
+    - Experience # years + events/year
+    - Equipment
+    - Price_value_ratio
+  recommendation_strategy:
+    good_better_best: true
+    note: "Propune 3 optiuni (Good/Better/Best) si explica diferenta dintre separat si echipa."
+
+shared_behavior_FV:
+  alerts_and_risks:
+    - "Drona nepermisa sau meteo nefavorabil fara plan B."
+    - "Termene promise nerealiste (ex: full video < 2 luni fara echipa extinsa)."
+    - "Lipsa backup audio (video) sau lipsa dual-slot (foto)."
+    - "Politici RAW/licente muzica neclare."
+  budget_optimization:
+    - "Reduce orele in intervalele fara momente majore."
+    - "Album dupa nunta (cost separat)."
+    - "Considera echipa FV daca raport pret/valoare este mai bun."
+    - "Teaser rapid contra cost + social pack scurt, pastrand termene normale pentru rest."
+  good_better_best:
+    enable: true
+    rule_of_thumb: "3 optiuni calibrate pe stil, nivel si incadrare in buget."

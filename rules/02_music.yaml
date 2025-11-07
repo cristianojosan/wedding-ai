@@ -1,0 +1,340 @@
+
+
+# ===============================================
+#  CATEGORY: music (M#)
+# ===============================================
+
+category: "M#"
+name: "Muzică & Moderator"
+version: "1.0"
+description: >
+  Reguli pentru recomandarea furnizorilor muzicali: DJ, Solist, MiniBand, Band, Orchestră, MixModern, cu opțiunea Moderator (MC).
+  Include clasificare, constrângeri pe sală, scorare, sinergii și șabloane UI.
+
+inputs:
+  required:
+    - guests_count
+  optional:
+    - budget_music        # number or {low|medium|high}
+    - wedding_style       # {modern|elegant|rustic|tradițional|club|mixt}
+    - venue:
+      has_stage: boolean            # maps -> venue.fields.has_stage
+      min_stage_area_m2: number     # (input liber; nu e în taxonomy, îl folosești doar în rules)
+      has_sound_limit: boolean      # maps -> venue.fields.has_sound_limit
+      # is_outdoor -> folosește context.event_location
+      price_per_person_eur: number  # maps -> venue.pricing.price_per_person_eur
+    - context:
+      event_location: string        # "indoor" | "outdoor"
+
+    - languages_needed    # {RO|RU|RO+RU}
+    - music_preferences   # list: [populara, international, retro, etno, live_only, club]
+    - package_preference  # {DJ|Solist|MiniBand|Band|Orchestra|MixModern|Nehotarat}
+    - timeline:
+        start: "HH:MM"
+        end: "HH:MM"
+        afterparty: boolean
+    - age_mix             # {tineri|mix|traditional}
+    - wants_moderator     # {yes|no|auto}
+
+packages:
+  # tipologii + atribute de bază (range-uri orientative, pot fi override per vendor)
+  - code: DJ
+    title: "DJ"
+    team_size: 1
+    mc_options: ["none", "team_mc_optional", "separate"]
+    price_range_eur: [600, 900]
+    ideal_guests: [60, 150]
+    energy: "high"
+    includes: ["audio_system", "basic_lights"]
+    tags: ["modern","urban","dance"]
+  - code: DJ_MC
+    extends: DJ
+    title: "DJ + MC"
+    team_size: 2
+    price_range_eur: [1000, 1300]
+  - code: SOLIST
+    title: "Solist"
+    team_size: 1
+    instrument_options: ["none","clapa"]
+    price_range_eur: [900, 1200]
+    ideal_guests: [80, 160]
+    energy: "medium-high"
+    mc_options: ["team_mc_optional","separate","none"]
+    dj_option: true
+    tags: ["live","elegant","romantic"]
+  - code: SOLIST_DJ_MC
+    title: "Solist + DJ + MC"
+    team_size: 3
+    price_range_eur: [1500, 2100]
+  - code: MINIBAND
+    title: "Solist cu echipă (MiniBand)"
+    team_size: 3
+    team_range: [2, 4]
+    instruments: ["clapa","chitara","saxofon","tobe"]
+    price_range_eur: [1300, 1800]
+    ideal_guests: [100, 200]
+    energy: "high"
+    mc_options: ["team_mc_optional","separate","none"]
+    dj_option: true
+    tags: ["live","band_mic","modern"]
+  - code: BAND
+    title: "Band complet"
+    team_size: 6
+    team_range: [5, 7]
+    instruments: ["clapa","chitara","bas","saxofon","tobe","voce_f","voce_m"]
+    price_range_eur: [2000, 3500]
+    ideal_guests: [120, 300]
+    energy: "very_high"
+    mc_options: ["team_mc_optional","separate"]
+    dj_option: true
+    tags: ["live","concert","premium"]
+  - code: ORCHESTRA
+    title: "Orchestră tradițională"
+    team_size: 8
+    team_range: [6, 10]
+    styles: ["traditionala_autentica","mixta","etno_moderna"]
+    price_range_eur: [2500, 4000]
+    ideal_guests: [150, 400]
+    energy: "very_high"
+    mc_options: ["team_mc_required"]
+    dj_option: "afterparty_optional"
+    tags: ["folclor","etno","tradițional"]
+  - code: MIXMODERN
+    title: "Mix modern (DJ + instrumentist)"
+    team_size: 2
+    instruments: ["saxofon","vioara","trompeta","percutii"]
+    price_range_eur: [1200, 1800]
+    ideal_guests: [70, 150]
+    energy: "high"
+    mc_options: ["separate","none"]
+    tags: ["modern","live_mix","trend"]
+
+decision_tree:
+  # selectează pachetul *de start* dacă mirii sunt nehotărâți (se re-scorează apoi pe vendorii concreți)
+  steps:
+    - if: "package_preference == 'DJ' or package_preference == 'Nehotarat'"
+      choose:
+        - when: "guests_count < 80"
+          package: "DJ_MC"
+        - else:
+          package: "DJ"
+    - if: "package_preference == 'Solist'"
+      choose:
+        - when: "guests_count <= 160"
+          package: "SOLIST_DJ_MC"
+        - else:
+          package: "SOLIST"
+    - if: "package_preference == 'MiniBand'"
+      choose:
+        - when: "guests_count in [100,200]"
+          package: "MINIBAND"
+    - if: "package_preference == 'Band'"
+      choose:
+        - when: "guests_count >= 120"
+          package: "BAND"
+    - if: "package_preference == 'Orchestra'"
+      choose:
+        - when: "guests_count >= 150"
+          package: "ORCHESTRA"
+    - if: "package_preference == 'MixModern'"
+      choose:
+        - package: "MIXMODERN"
+    - if: "package_preference == 'Nehotarat'"
+      choose:
+        - when: "wedding_style in ['tradițional'] or age_mix == 'traditional'"
+          package: "ORCHESTRA"
+        - when: "wedding_style in ['modern','elegant','club'] and guests_count between 80 and 160"
+          package: "DJ_MC"
+        - when: "guests_count between 100 and 200"
+          package: "MINIBAND"
+        - else:
+          package: "MIXMODERN"
+
+constraints:
+  hard_blocks:
+    - rule: "venue.fields.has_sound_limit == true"
+      exclude_packages: ["BAND","ORCHESTRA","MINIBAND"]
+      reason: "Restricții de zgomot ale sălii."
+    - rule: "context.event_location == 'outdoor' and music.fields.sound_power_kw >= 2"
+      exclude_all: true
+      reason: "Echipamente voluminoase/puternice fără protecție dedicată pentru outdoor."
+  soft_penalties:
+    - rule: "venue.fields.has_stage == false"
+      downgrade: ["BAND","ORCHESTRA","MINIBAND"]
+      reason: "Nu există scenă; preferă echipe compacte."
+    - rule: "budget_music < 700"
+      downgrade: ["BAND","ORCHESTRA","MINIBAND"]
+      suggest: ["DJ","SOLIST"]
+    - rule: "languages_needed == 'RO+RU'"
+      require_vendor_field: "mc_languages includes 'RO+RU'"
+
+scoring:
+  total: 100
+  weights:
+    quality_experience: 25        # reviews, ani, portofoliu, echipamente
+    mc_score: 15                  # vezi mc_scoring
+    budget_fit: 20               # penalizare la depășire >10%
+    venue_compat: 15             # scenă, zgomot, outdoor
+    tech_gear: 10                # sunet, lumini, microfoane, fum
+    synergies: 5                 # colaborări și compatibilități
+    style_match: 10              # potrivire cu preferințele mirilor
+  mc_scoring:
+    weights:
+      hall_recommendations: 30   # 1 reco=10p, 3+=30p
+      years_experience: 20       # 1p/an, max 20
+      lead_time_months: 20       # 12m=20, 9m=15, 6m=10, <3m=5
+      punctual_organization: 10  # feedback sală
+      languages: 10              # RO=5, RO+RU=10
+      own_team: 5                # are DJ/sunetist stabil
+      clear_pricing: 5           # ofertă clară
+  formulas:
+    budget_fit: "max(0, 1 - max(0, (price_est - budget_music)/budget_music)) * 100"
+    venue_compat: >
+      case venue.fields.has_sound_limit: 
+       if music.fields.sound_power_kw >= 2 then 0 else 100;
+      + stage_bonus if venue.fields.has_stage and (package in ['MINIBAND','BAND','ORCHESTRA']);
+      clipped 0..100
+    final_score: >
+      sum_component_weights_normalized
+
+synergies:
+  - with: "S#"
+    rules:
+      - if: "venue.fields.has_sound_limit"
+        action: "downgrade BAND, ORCHESTRA, MINIBAND"
+      - if: "venue.fields.has_stage and package in ['MINIBAND','BAND','ORCHESTRA']"
+        action: "small bonus"
+  - with: "FX#"
+    rules:
+      - if: "package in ['DJ','DJ_MC','MINIBAND','BAND','ORCHESTRA','MIXMODERN']"
+        suggest: ["heavy_fog_if_allowed","dancefloor_lights"]
+      - if: "venue.fields.allows_heavy_smoke == false"
+        block: ["heavy_fog"]
+  - with: "D#"
+    rules:
+      - if: "stage_decor_dense and package in ['MINIBAND','BAND','ORCHESTRA']"
+        action: "warn for space & setup timing"
+  - with: "F#/V#"
+    rules:
+      - if: "strong_stage_lights"
+        action: "suggest photo_friendly preset at moments"
+
+budget:
+  compute:
+    - meal_cost: "team_size * venue.pricing.price_per_person_eur"
+    - base: "vendor.packages.price_eur"
+    - extras: "mc_extra + dj_extra + instrumentist_extra + overtime + transport"
+    - fx_addons: "optional"
+    - total: "base + extras + meal_cost + fx_addons"
+  expose_fields: ["music_fee","extras","meal_cost","total"]
+
+ui:
+  cards:
+    - key: "DJ_MC"
+      title: "DJ + Moderator"
+      ideal: "60–150 invitați, modern/elegant"
+      note: "energie de club, dans continuu"
+    - key: "SOLIST_DJ_MC"
+      title: "Solist + DJ + MC"
+      ideal: "80–160 invitați"
+      note: "emoție live + continuitate"
+    - key: "BAND"
+      title: "Band complet + MC"
+      ideal: "120–300 invitați"
+      note: "vibe de concert; 6–8 locuri la masă"
+    - key: "ORCHESTRA"
+      title: "Orchestră + MC"
+      ideal: "150–400 invitați"
+      note: "tradițional autentic, energie mare"
+    - key: "MIXMODERN"
+      title: "DJ + sax/violin"
+      ideal: "70–150 invitați / afterparty"
+      note: "trend 2025, elegant & energic"
+
+  messages:
+    intro: >
+      Hai să vorbim puțin despre muzică 🎶 Atmosfera e jumătate din frumusețea unei nunți —
+      depinde de cine pune muzica, cum se comunică cu invitații și cum se ține ritmul serii.
+      Îți arăt pe scurt variantele și te ghidez până alegem împreună formatul perfect.
+
+    education_summary: >
+      Opțiunile principale sunt: DJ + MC (energie modernă), Solist + DJ (emoție live + flux),
+      MiniBand / Band (spectacol live), Orchestră (tradițional & etno), Mix modern (DJ + sax/violin).
+      În toate cazurile, MC-ul e recomandat (uneori inclus/obligatoriu).
+
+    budget_explain_template: >
+      La formații mai mari trebuie să ții cont și de mesele pentru echipă.
+      Dacă meniul la sală este {{menu_price}} lei, iar echipa are {{team_size}} persoane,
+      adaugi aproximativ {{meal_cost_lei}} lei ({{team_size}} × {{menu_price}}) în bugetul total.
+      Ex.: pentru un band de 7, la 1000 lei/meniu, e încă 7000 lei.
+
+    show_examples_prompt: >
+      Îți arăt cinci exemple ca să vezi diferențele de energie și stil (video scurte):
+      1) DJ + MC, 2) Solist + DJ + MC, 3) Band + MC, 4) Orchestră + MC, 5) Mix modern.
+      După ce le vezi, spune-mi ce vibe te atrage: modern & club, live cu momente,
+      tradițional sau un mix elegant?
+
+    refine_questions: >
+      Câți invitați estimați? (acum: {{guests_count}})
+      Ce stil vă reprezintă mai mult (modern / tradițional / mixt)? (acum: {{style}})
+      Aveți sală aleasă? Are restricții de zgomot sau scenă? ({{venue_name}})
+      Preferiți MC inclus în echipă sau separat (mai personalizat)? ({{mc_label}})
+
+    reco_gbb_template: >
+      Pe baza a ce mi-ați spus, aș porni cu:
+      • Good — {{good_title}} (~{{good_total_eur}} €) + mese echipă ~{{good_meals_lei}} lei
+      • Better — {{better_title}} (~{{better_total_eur}} €) + mese echipă ~{{better_meals_lei}} lei
+      • Best — {{best_title}} (~{{best_total_eur}} €) + mese echipă ~{{best_meals_lei}} lei
+      Vreți să deschidem detaliile pentru una dintre opțiuni?
+
+    noise_restriction_notice: >
+      Sala are restricții de zgomot, așa că Band/Orchestră nu sunt ideale aici.
+      Îți propun DJ + MC sau Solist + DJ — păstrăm energia ridicată și controlul volumului,
+      fără riscul de a încălca regulile locației.
+
+    small_stage_notice: >
+      Spațiul pentru scenă e mai compact. Ca să nu aglomerăm locul,
+      recomand DJ + MC sau Solist + DJ; dacă vrei sunet live mai bogat,
+      un MiniBand mic (2–3 membri) rămâne în grafic, fără set-up voluminos.
+
+    fx_upsell_tip: >
+      Dacă alegem DJ/Band, merită pachet de lumini și fum greu pentru dansul mirilor (dacă sala permite).
+      Pot seta și un preset „photo-friendly” în momentele cheie, ca să iasă fotografiile impecabile.
+
+    confirm_selection_template: >
+      Perfect, mergem pe {{package}}.
+      Rezumat: prestatori ≈ {{price_eur}} €, mese echipă ≈ {{meal_cost_lei}} lei
+      ({{team_size}} × {{menu_price}}). Vrei să-ți trimit și 2 alternative apropiate ca preț,
+      ca să comparăm side-by-side?
+
+    empathetic_close: >
+      Nu există alegere greșită — important e să vă reprezinte stilul.
+      Eu rămân aici, ajustăm pachetul când vrei (MC separat, instrumentist, afterparty),
+      și verific pentru voi disponibilitatea furnizorilor preferați.
+
+helpers:
+  formatters:
+    # Calculează automat costul meselor pentru echipă
+    meal_cost_lei:
+      args: ["team_size", "menu_price"]
+      expr: "team_size * menu_price"   # evaluată de motorul tău de reguli
+
+    # Pachete Good–Better–Best: generează sumar cu totaluri și mese
+    gbb_summary:
+      args:
+        - "good.team_size"
+        - "good.menu_price"
+        - "good.total_eur"
+        - "better.team_size"
+        - "better.menu_price"
+        - "better.total_eur"
+        - "best.team_size"
+        - "best.menu_price"
+        - "best.total_eur"
+      returns:
+        good_meals_lei: "good.team_size * good.menu_price"
+        better_meals_lei: "better.team_size * better.menu_price"
+        best_meals_lei: "best.team_size * best.menu_price"
+        good_total_eur: "good.total_eur"
+        better_total_eur: "better.total_eur"
+        best_total_eur: "best.total_eur"

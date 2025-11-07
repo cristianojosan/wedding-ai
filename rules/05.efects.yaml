@@ -1,0 +1,384 @@
+category: fx
+meta:
+  version: v1.0-fx-rules
+  taxonomy_target: v1.5
+  language: en_keys_ro_messages
+  description: >
+    Wedding AI — FX ruleset aligned to taxonomy v1.5. Keys in English, user-facing
+    messages in Romanian. Uses enums.fx_types: [heavy_smoke, cold_spark, fireworks_outdoor, lights_show].
+    Minimal compatibility only; no power/insurance/photo_friendly/safety-policies blocks.
+
+fx:
+  # ----------------------------------------------------------------
+  # 1) EFFECTS CATALOG (strictly aligned to enums.fx_types in taxonomy)
+  # ----------------------------------------------------------------
+  effects_catalog:
+    - code: heavy_smoke
+      label: "Heavy Smoke"
+      description_ro: "Fum alb dens care acoperă podeaua la primul dans; efect de «nori» pentru un moment cinematic."
+    - code: cold_spark
+      label: "Cold Sparks"
+      description_ro: "Scântei reci (fără flacără reală), ideale la intrarea mirilor sau la tort; necesită o distanță minimă."
+    - code: fireworks_outdoor
+      label: "Outdoor Fireworks"
+      description_ro: "Show pirotehnic în aer liber; poate necesita autorizație și este influențat de vreme."
+    - code: lights_show
+      label: "Lights Show"
+      description_ro: "Joc de lumini pentru atmosferă/party; intensitatea se poate ajusta în funcție de preferințe."
+
+  # ----------------------------------------------------------------
+  # 2) FIELD SCHEMA (aligned with taxonomy fx.fields + vendor_schema)
+  #    - We keep only canonical fields; package/commercial fields reuse vendor_schema.packages
+  # ----------------------------------------------------------------
+  fields_schema:
+    # fx.fields from taxonomy
+    - name: type                 # enum: enums.fx_types
+      type: enum
+      enum: [heavy_smoke, cold_spark, fireworks_outdoor, lights_show]
+      required: true
+      role: "Effect type offered by the vendor"
+    - name: indoor_safe          # bool (taxonomy fx.fields)
+      type: bool
+      required: true
+      role: "Effect can be safely used indoor, per vendor specs"
+    - name: operator_required    # bool (taxonomy fx.fields)
+      type: bool
+      required: true
+      role: "Requires an operator during event"
+    - name: duration_min         # int (taxonomy fx.fields)
+      type: int
+      required: true
+      role: "Effect or segment duration (minutes)"
+
+    # package fields -> reuse vendor_schema.packages (name, price_eur, hours, inclusions[], addons[])
+    # extra granular knobs kept under extensions (compatible with taxonomy 'extensions:*')
+    - name: extensions.show_density
+      type: enum
+      enum: [low, medium, high]
+      required: false
+      role: "Intensity/rhythm of the lights show (applies mainly to lights_show)"
+
+    # minimal compatibility (no safety-policy expansion)
+    - name: compat.requires_venue_allows_heavy_smoke
+      type: bool
+      required: false
+      role: "Heavy smoke requires venue flag allows_heavy_smoke"
+    - name: compat.requires_venue_allows_cold_spark
+      type: bool
+      required: false
+      role: "Cold sparks require venue flag allows_cold_spark"
+    - name: compat.safety_distance_m
+      type: int
+      required: false
+      role: "Minimum safety distance for cold_spark/fireworks_outdoor"
+    - name: compat.permits_required
+      type: bool
+      required: false
+      role: "Permit needed (e.g., for fireworks_outdoor)"
+    - name: compat.permit_lead_days
+      type: int
+      required: false
+      role: "Lead time in days to obtain permit"
+    - name: compat.weather_risk
+      type: enum
+      enum: [low, medium, high]
+      required: false
+      role: "Weather risk used for outdoor fireworks decisions"
+    - name: compat.noise_curfew_time
+      type: string
+      format: "HH:MM"
+      required: false
+      role: "Venue quiet-hours cut-off for outdoor fireworks timing"
+
+  # ----------------------------------------------------------------
+  # 3) CONVERSATION FLOW (list all -> explain on ask -> user selects -> check -> recommend)
+  # ----------------------------------------------------------------
+  conversation:
+    entrypoint:
+      id: fx_start
+      message_ro: "Acum haideți să vorbim despre efectele speciale — partea care aduce momentul «wow». Vreți să vedeți toate opțiunile disponibile?"
+      next: fx_list_all
+
+    nodes:
+      - id: fx_list_all
+        type: present_options
+        options_source: fx.effects_catalog
+        message_ro: |
+          Iată toate efectele pe care le putem adăuga la nuntă:
+          • Fum greu (Heavy Smoke)
+          • Cold Sparks (scântei reci)
+          • Artificii outdoor
+          • Lights Show (joc de lumini)
+          Alegeți ce v-ar plăcea — puteți selecta mai multe.
+        capture: selected_effects
+        next: fx_optional_explain
+
+      - id: fx_optional_explain
+        type: qa_loop
+        message_ro: "Dacă aveți întrebări despre un efect (ex. «ce face X?»), spuneți-mi și vă arăt imediat exemple foto/video."
+        on_question:
+          heavy_smoke:
+            message_ro: "Fumul greu este un efect alb, dens, care acoperă podeaua la primul dans și creează impresia că plutiți pe nori. Vreți să vedeți o poză sau un clip scurt?"
+          cold_spark:
+            message_ro: "Cold Sparks sunt scântei reci (fără flacără reală). Arată spectaculos la intrarea mirilor sau la tort. Este necesară o distanță minimă."
+          fireworks_outdoor:
+            message_ro: "Artificiile se fac în aer liber, pot necesita autorizație și depind de vreme. Pot fi sincronizate scurt (30–60 secunde)."
+          lights_show:
+            message_ro: "Show de lumini pentru atmosferă și party; intensitatea se poate regla (de la discret la energic)."
+        exit_condition: user_done
+        next: fx_check_compatibility
+
+      - id: fx_check_compatibility
+        type: evaluate_rules
+        input: selected_effects
+        ruleset_ref: fx.rules.compatibility
+        on_conflict:
+          message_ro: "Am găsit o incompatibilitate: {reason}. Vreți să vă propun o alternativă cu impact vizual similar?"
+        on_pass:
+          message_ro: "Efectele selectate sunt compatibile cu locația și ce ați ales până acum."
+        next: fx_recommend_vendors
+
+      - id: fx_recommend_vendors
+        type: recommend
+        strategy: good_better_best
+        scoring_ref: fx.scoring
+        filters:
+          match_effects: selected_effects
+        message_ro: |
+          Pe baza preferințelor voastre și a regulilor locației, iată recomandările:
+          • Good — variantă simplă și sigură.
+          • Better — echilibru bun între efect și buget.
+          • Best — impact vizual maxim.
+          Doriți detalii despre fiecare pachet?
+        next: end
+
+  # ----------------------------------------------------------------
+  # 4) RULES — minimal compatibility (ONLY per your spec)
+  # ----------------------------------------------------------------
+  rules:
+    compatibility:
+      # Heavy smoke allowed by venue
+      - id: rule_heavy_smoke_venue
+        if:
+          all:
+            - effect_in_selected: heavy_smoke
+            - equals: { left: venue.allows_heavy_smoke, right: false }
+        then:
+          action: block_effect
+          effect: heavy_smoke
+          reason_ro: "Locația nu permite fum greu."
+          alternatives:
+            - lights_show
+
+      # Cold sparks allowed by venue
+      - id: rule_cold_spark_venue
+        if:
+          all:
+            - effect_in_selected: cold_spark
+            - equals: { left: venue.allows_cold_spark, right: false }
+        then:
+          action: block_effect
+          effect: cold_spark
+          reason_ro: "Locația nu permite Cold Sparks."
+          alternatives:
+            - lights_show
+
+      # Cold sparks: safety distance
+      - id: rule_cold_spark_distance
+        if:
+          all:
+            - effect_in_selected: cold_spark
+            - lt: { left: context.safety_distance_available_m, right: fx.compat.safety_distance_m }
+              # NOTE: see Proposed new keys -> compat.safety_distance_m
+        then:
+          action: request_adjustment
+          target: placement
+          reason_ro: "Distanța de siguranță pentru Cold Sparks nu este suficientă față de decor/invitați."
+          alternatives:
+            - lights_show
+
+      # Fireworks: permits and lead time
+      - id: rule_fireworks_permit
+        if:
+          all:
+            - effect_in_selected: fireworks_outdoor
+            - equals: { left: fx.compat.permits_required, right: true }
+            - lt: { left: context.days_until_event, right: fx.compat.permit_lead_days }
+        then:
+          action: block_effect
+          effect: fireworks_outdoor
+          reason_ro: "Pentru artificii este necesară autorizație, iar timpul rămas nu este suficient."
+          alternatives:
+            - cold_spark
+            - lights_show
+
+      # Fireworks: weather risk
+      - id: rule_fireworks_weather
+        if:
+          all:
+            - effect_in_selected: fireworks_outdoor
+            - equals: { left: fx.compat.weather_risk, right: high }
+        then:
+          action: block_effect
+          effect: fireworks_outdoor
+          reason_ro: "Condițiile meteo sunt nefavorabile pentru artificii în aer liber."
+          alternatives:
+            - cold_spark
+            - lights_show
+
+      # Curfew check (optional in taxonomy; proposed key)
+      - id: rule_curfew_fireworks
+        if:
+          all:
+            - effect_in_selected: fireworks_outdoor
+            - after_time: { time: context.planned_effect_time, threshold: fx.compat.noise_curfew_time }
+        then:
+          action: reschedule_or_replace
+          reason_ro: "Regula de liniște a locației nu permite efectul la ora planificată."
+          alternatives:
+            - cold_spark
+            - lights_show
+
+      # Indoor safe basic check (respect vendor's indoor_safe vs. event location)
+      - id: rule_indoor_safe
+        if:
+          all:
+            - equals: { left: context.event_location, right: indoor }
+            - any_effect_in_selected: [heavy_smoke, cold_spark, lights_show]
+            - equals: { left: fx.fields.indoor_safe, right: false }
+        then:
+          action: block_effect
+          reason_ro: "Efectul selectat nu este disponibil la interior conform specificațiilor furnizorului."
+          alternatives:
+            - lights_show
+
+  # ----------------------------------------------------------------
+  # 5) SCORING — aligned to vendor_schema.scoring keys
+  # ----------------------------------------------------------------
+  scoring:
+    weights:
+      compatibility: 45        # venue flags + minimal compat rules outcome
+      visual_impact: 25        # effect type + extensions.show_density (if present)
+      professional: 20         # maps to vendor_schema.scoring.professional
+      price_value_ratio: 10    # reuse vendor_schema.scoring.price_value_ratio
+
+    derive:
+      compatibility:
+        from: rules.compatibility   # engine folds rule outcomes
+      visual_impact:
+        map:
+          heavy_smoke: 0.8
+          cold_spark: 0.85
+          fireworks_outdoor: 1.0
+          lights_show: 0.75
+        adjust_by_show_density:
+          low: -0.05
+          medium: 0.00
+          high: +0.05
+
+    adjustments:
+      - condition: { equals: { left: decision.blocked, right: true } }
+        apply: { total_override: 0 }
+        note: "Hard block for that effect ⇒ score 0."
+      - condition: { gt: { left: vendor.packages.urgency_fee, right: 1.0 } }
+        apply: { delta_pct: -5 }
+        note: "Urgency fee reduces price_value slightly."
+      - condition: { equals: { left: context.event_size, right: small } }
+        when: { equals: { left: fx.extensions.show_density, right: high } }
+        apply: { delta_pct: -5 }
+        note: "High density may be overkill for small events."
+
+  # ----------------------------------------------------------------
+  # 6) UI MESSAGES (Romanian)
+  # ----------------------------------------------------------------
+  ui_messages:
+    intro: "Acum haideți să vedem efectele speciale — partea care aduce momentul «wow»."
+    list_all: "Iată lista completă de efecte. Puteți bifa oricâte doriți; ulterior verificăm compatibilitatea."
+    ask_selection: "Ce efecte v-ar plăcea să aveți la nuntă?"
+    qna_hint: "Dacă aveți întrebări («ce înseamnă X?»), vă explic pe scurt și vă arăt poze/video."
+    incompatible: "Am identificat o incompatibilitate: {reason}. Pot să vă propun o alternativă cu efect vizual similar."
+    compatible: "Selecția voastră este compatibilă cu locația și celelalte alegeri. Mergem mai departe la recomandări."
+    suggest_gbb: |
+      Pe baza preferințelor, vă propun trei niveluri:
+      • Good — simplu și sigur
+      • Better — echilibru efect/buget
+      • Best — impact vizual maxim
+    fireworks_permit_missing: "Pentru artificii e necesară autorizație, iar timpul nu permite obținerea ei. Vă propun Cold Sparks sau Lights Show."
+    cold_spark_distance: "Pentru Cold Sparks, păstrăm o distanță minimă de {safety_distance_m} m față de invitați și decor."
+    curfew_warning: "Regula de liniște a locației nu permite efectul la ora planificată. Putem reprograma sau alege o alternativă."
+
+  # ----------------------------------------------------------------
+  # 7) RECOMMENDATION — Good / Better / Best buckets
+  # ----------------------------------------------------------------
+  recommendation:
+    mode: good_better_best
+    compose:
+      good:
+        include_any: [lights_show]
+        message_ro: "Pachet Good: Lights Show — variantă sigură și elegantă."
+      better:
+        include_any: [lights_show, heavy_smoke, cold_spark]
+        message_ro: "Pachet Better: efect combinat (de ex. Lights Show + Heavy Smoke sau Cold Sparks), operator inclus."
+      best:
+        include_any: [lights_show, cold_spark, fireworks_outdoor]
+        message_ro: "Pachet Best: Lights Show + Cold Sparks și, unde este posibil, un moment de artificii outdoor."
+
+  # ----------------------------------------------------------------
+  # 8) ACCEPTANCE TESTS (plain text QA)
+  # ----------------------------------------------------------------
+  tests:
+    - name: "Venue blocks heavy smoke"
+      given:
+        selected_effects: [heavy_smoke, lights_show]
+        venue:
+          allows_heavy_smoke: false
+      expect:
+        blocked_effects: [heavy_smoke]
+        alternative_suggested: true
+        message_contains: "Locația nu permite fum greu"
+
+    - name: "No time for fireworks permit"
+      given:
+        selected_effects: [fireworks_outdoor]
+        fx:
+          compat:
+            permits_required: true
+            permit_lead_days: 10
+        context:
+          days_until_event: 5
+      expect:
+        blocked_effects: [fireworks_outdoor]
+        alternatives: [cold_spark, lights_show]
+
+    - name: "Cold sparks with insufficient distance"
+      given:
+        selected_effects: [cold_spark]
+        fx:
+          compat:
+            safety_distance_m: 3
+        context:
+          safety_distance_available_m: 2
+      expect:
+        action: request_adjustment
+        message_contains: "Distanța de siguranță"
+
+    - name: "Curfew prevents fireworks time"
+      given:
+        selected_effects: [fireworks_outdoor]
+        fx:
+          compat:
+            noise_curfew_time: "22:00"
+        context:
+          planned_effect_time: "22:30"
+      expect:
+        action: reschedule_or_replace
+        alternatives: [cold_spark, lights_show]
+
+    - name: "All compatible -> recommend vendors G/B/B"
+      given:
+        selected_effects: [lights_show, cold_spark]
+        venue:
+          allows_cold_spark: true
+      expect:
+        recommendation_mode: good_better_best
+        messages_include: ["Pachet Good", "Pachet Better", "Pachet Best"]

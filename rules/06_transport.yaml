@@ -1,0 +1,114 @@
+# rules_transport.yaml — Wedding AI
+# Keys in EN; user-facing messages in RO.
+
+category: transport
+
+meta:
+  version: "1.1"
+  aligns_with_taxonomy: "v1.6"
+  notes: >
+    Transport logic for T1 (bridal car) and T2 (guest transport).
+    No T3 package. No decor. No waiting fees for T2 (return trip included).
+    AC fee is a fixed extra charge (not per hour), depending on vendor policy.
+
+inputs:
+  required:
+    - subtype                 # enums.transport_types: t1_car | t2_bus
+    - total_distance_km
+  optional:
+    - guests_to_transport
+    - seats
+    - included_km
+    - price_per_km_eur
+    - driver_included
+    - ac_included             # NEW
+    - ac_fee_eur_fixed        # NEW (fixed sum, not per hour)
+
+assumptions:
+  - "Pentru T2 (transport invitați), tariful include cursa dus-întors: punct de colectare → sală → retur (fără taxe de așteptare)."
+  - "Accesul efectiv al autocarului pe străzile/locațiile alese trebuie confirmat direct cu furnizorul de către miri."
+  - "Taxa pentru aer condiționat este o sumă fixă stabilită de furnizor, nu pe oră."
+
+compute:
+  capacity:
+    when: "subtype == 't2_bus' and guests_to_transport and seats"
+    vehicles_required: "ceil(guests_to_transport / seats)"
+    coverage_pct: "(min(guests_to_transport, vehicles_required * seats) / guests_to_transport) * 100"
+    notes: "Dacă flota reală < vehicles_required, se propun ture multiple sau mix cu alți furnizori."
+  km_extra:
+    when: "included_km is not null and price_per_km_eur is not null"
+    extra_km: "max(total_distance_km - included_km, 0)"
+    extra_cost_eur: "extra_km * price_per_km_eur"
+  ac_fixed_fee:
+    when: "ac_included == false and ac_fee_eur_fixed is not null"
+    info_only_fee_eur_fixed: "ac_fee_eur_fixed"
+
+selection_rules:
+  - name: hard_block_insufficient_capacity
+    when: "subtype == 't2_bus' and guests_to_transport and seats and ( (seats < 1) or ((seats) / guests_to_transport) < 0.8 and not vehicles_required )"
+    action: "block"
+    message_ro: "Capacitatea nu poate acoperi minim 80% dintre invitați într-o singură tură și nu există alternativă clară."
+
+  - name: prefer_coach_when_economical_but_warn_access
+    when: "subtype == 't2_bus' and seats and seats >= 45"
+    action: "advice"
+    message_ro: "Autocarul poate fi mai avantajos ca preț per persoană, însă vă rugăm să verificați cu furnizorul accesul autocarului pe traseul ales (îmbarcare → sală)."
+
+pricing:
+  base:
+    source: "vendor.packages.price_eur"
+  extras:
+    - when: "included_km is not null and price_per_km_eur is not null and total_distance_km is not null"
+      label: "Km suplimentari"
+      value_eur: "max(total_distance_km - included_km, 0) * price_per_km_eur"
+      message_ro: "Depășești kilometrii incluși cu ~{extra_km} km; cost suplimentar estimat {extra_cost_eur} €."
+    - when: "ac_included == false and ac_fee_eur_fixed is not null"
+      label: "Taxă aer condiționat (fixă)"
+      value_eur: 0
+      message_ro: "Aer condiționat taxat separat: +{ac_fee_eur_fixed} € (sumă fixă stabilită de furnizor)."
+
+scoring:
+  weights:
+    capacity_fit: 30
+    route_timeline_fit: 25
+    quality: 20
+    price_value: 25
+  factors:
+    capacity_fit:
+      when: "subtype == 't2_bus' and guests_to_transport and seats"
+      score: "min( ( (min(guests_to_transport, seats * (vehicles_required or 1)) / guests_to_transport) * 100 ), 100 )"
+    route_timeline_fit:
+      heuristic: "100"
+    quality:
+      heuristic: "((vendor.scoring.professional or 80) + (vendor.scoring.compatibility or 80)) / 2"
+    price_value:
+      heuristic: "vendor.scoring.price_value_ratio or 75"
+  adjustments:
+    - when: "subtype == 't2_bus' and seats and seats >= 45"
+      delta_pct: 3
+      note: "Coach adesea mai eficient ca preț/persoană (cu avertisment de acces)."
+  blocks:
+    - when: "subtype == 't2_bus' and guests_to_transport and seats and ( (min(guests_to_transport, seats * (vehicles_required or 0)) / guests_to_transport) < 0.8 )"
+      reason: "coverage_below_80"
+
+ui_messages:
+  recommendation_t2:
+    ro: "Pentru {guests_to_transport} invitați, propunem ~{vehicles_required} vehicul(e) × {seats} locuri; tariful include cursa dus-întors (fără taxe de așteptare)."
+  ac_included_yes:
+    ro: "Aer condiționat: inclus în preț."
+  ac_included_no:
+    ro: "Aer condiționat: se taxează separat (+{ac_fee_eur_fixed} € fix) — confirmați la furnizor."
+  coach_access_warning:
+    ro: "Autocarul poate fi avantajos la cost, dar verificați cu furnizorul accesul pe traseu (îmbarcare → sală)."
+  km_extra_cost:
+    ro: "Depășești kilometrii incluși cu ~{extra_km} km; cost suplimentar estimat {extra_cost_eur} €."
+  capacity_warning:
+    ro: "Flota actuală nu poate acoperi toți invitații într-o singură tură; putem organiza ture multiple sau mix de vehicule."
+  driver_included_note:
+    ro: "Șofer inclus; traseul standard acoperă dus-întors (fără taxe de așteptare)."
+
+notes_for_operator:
+  - "Taxa pentru AC este fixă și informativă; AI-ul nu o calculează în total, doar o afișează."
+  - "Nu generăm mesaje despre parcare/acces îngust ca responsabilitate a mirilor; doar avertisment generic pentru autocare."
+  - "Nu calculăm waiting fees pentru T2."
+  - "Nu există T3 (combo)."

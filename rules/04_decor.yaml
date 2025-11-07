@@ -1,0 +1,549 @@
+category: "D# - Decor & Flowers"
+
+meta:
+  version: "rules.d#-v1.0"
+  taxonomy_ref: "taxonomy_v1.4"
+  language_policy:
+    keys_language: "EN"
+    user_messages_language: "RO"
+  notes: |
+    This rule file defines logic for recommending décor & flowers vendors (D#).
+    All logical keys are in English, all user-facing messages are Romanian.
+
+inputs:
+  required:
+    - key: guests_count
+      type: integer
+      min: 0
+    - key: venue_type
+      type: enum
+      values: [indoor, outdoor]
+    - key: venue_height_m
+      type: number
+      min: 0
+    - key: budget_decor
+      type: union
+      allowed:
+        - number
+        - enum: [low, medium, high]
+    - key: wedding_style
+      type: enum
+      values: [modern, elegant, rustic, boho, traditional, mixed]
+    - key: color_palette
+      type: array
+      items: string
+    - key: personalization_level
+      type: enum
+      values: [standard, semi_custom, full_custom]
+    - key: setup_window_hours
+      type: number
+      min: 0
+    - key: delivery_distance_km
+      type: number
+      min: 0
+
+  optional:
+    - key: favorite_flowers
+      type: array
+      items: string
+    - key: allergies
+      type: array
+      items: string
+    - key: preferred_materials
+      type: enum
+      values: [natural, artificial, mix]
+    - key: photo_corner_needed
+      type: boolean
+    - key: church_decor_needed
+      type: boolean
+    - key: car_decor_needed
+      type: boolean
+    - key: terrace_needed
+      type: boolean
+    - key: ceiling_decor_needed
+      type: boolean
+    - key: candy_bar_needed
+      type: boolean
+    - key: table_layout
+      type: enum
+      values: [round, rectangular, mixed]
+    - key: seating
+      type: enum
+      values: [with_covers, bows, none]
+    - key: venue_restrictions
+      type: object
+      properties:
+        candles_allowed: boolean
+        adhesive_allowed: boolean
+        balloons_allowed: boolean
+    # proposed in doc, see bottom:
+    - key: weather_risk
+      type: enum
+      values: [low, medium, high]
+    - key: inclus_bouquet
+      type: boolean
+
+zones:
+  # Vendors declare YES/NO for each zone. Used in scoring and matching.
+  Z1:
+    name: guest_tables
+    description: "aranjamente florale / lumânări / fețe de masă tematice"
+  Z2:
+    name: main_table
+    description: "fundal, flori, draperii, lumini calde"
+  Z3:
+    name: entrance_arch
+    description: "decor intrare / poartă florală / panou personalizat"
+  Z4:
+    name: ceiling
+    description: "candelabre florale, țesături suspendate, lumini"
+  Z5:
+    name: dancefloor_stage
+    description: "compoziții mari, arcade, panouri LED / textile"
+  Z6:
+    name: terrace_courtyard
+    description: "lounge, lumini exterioare, flori, draperii"
+  Z7:
+    name: photo_corner
+    description: "colț foto, panou tematic, decor Instagram-friendly"
+  Z8:
+    name: hall_entrance_lobby
+    description: "flori, panouri, covor roșu"
+  Z9:
+    name: church_ceremony
+    description: "arcadă / bănci / masă cununie"
+  Z10:
+    name: wedding_car
+    description: "buchet / arcadă mică pe portbagaj / panglici"
+  Z11:
+    name: chairs_covers_bows
+    description: "detalii textile dacă furnizorul oferă"
+  Z12:
+    name: candy_bar_dessert
+    description: "decor floral / standuri tematice"
+
+materials:
+  natural_flowers:
+    - rose
+    - peony
+    - orchid
+    - chrysanthemum
+    - daffodil
+    - tulip
+    - hydrangea
+    - gerbera
+  artificial_flowers:
+    - artificial_rose
+    - synthetic_peony
+    - silk_orchid
+  fabrics:
+    - velvet
+    - satin
+    - silk
+    - linen
+    - tulle
+    - eco_fabrics
+  structures:
+    - gold_frames
+    - silver_frames
+    - circular_arch
+    - rectangular_arch
+    - hanging_frames
+  lighting:
+    - warm_led
+    - ambient
+    - stage
+  accessories:
+    - candles
+    - crystals
+    - mirrors
+    - initials
+    - balloons
+    - themed_stands
+  dominant_style_optional:
+    - pastel
+    - colorful
+    - luxuriant
+    - minimalist
+    - dense_floral
+
+personalization:
+  levels:
+    standard: "lucrează după modele prestabilite (catalog)"
+    semi_custom: "adaptează culori / volum / flori la sală"
+    full_custom: "design unic + concept 3D"
+
+event_types_supported:
+  - weddings
+  - baptisms
+  - outdoor_ceremonies
+  - corporate
+  - anniversaries
+
+policies_and_services:
+  decor.fields.setup_included: boolean
+  decor.fields.teardown_included: boolean
+  decor.fields.transport_included_city: boolean
+  vendor.policies.deposit_pct: number
+  min_booking_lead_time: string   # e.g. "2 months"
+  primary_area: string            # e.g. "Chișinău, Orhei, Bălți"
+  travel_surcharge: string        # e.g. "+0.5 €/km"
+
+packages:
+  archetypes:
+    - code: basic_tables
+      zones: [Z1]
+      personalization_level: standard
+      includes:
+        - "centerpieces de bază"
+      excludes:
+        - "head table background"
+        - "ceiling decor"
+      user_msg_ro: "Decor simplu, elegant, concentrat pe mesele invitaților."
+    - code: tables_plus_headtable
+      zones: [Z1, Z2]
+      personalization_level: semi_custom
+      optional:
+        - "small entrance arch (Z3)"
+      user_msg_ro: "Decor armonios pentru sală, cu accent pe masa mirilor."
+    - code: full_hall
+      zones: [Z1, Z2, Z3, Z5]
+      optional:
+        - "terrace (Z6)"
+      lighting: [warm_led, ambient]
+      personalization_level: semi_custom
+      user_msg_ro: "Decor complet pentru întreaga sală, perfect pentru poze spectaculoase."
+    - code: ceiling_feature
+      zones: [Z4]
+      type: addon
+      requires:
+        min_venue_height_m: 3.5
+        min_setup_window_hours: 4
+      materials:
+        - "fabric draping"
+        - "floral chandeliers"
+        - "lights"
+      user_msg_ro: "Decor spectaculos suspendat, dacă sala permite montajul."
+    - code: photo_corner_bundle
+      zones: [Z7]
+      optional:
+        - "neon/light wall"
+      user_msg_ro: "Colț foto tematic, pentru poze de neuitat."
+    - code: church_addon
+      zones: [Z9]
+      transport_included_km: 10
+      user_msg_ro: "Decor elegant pentru cununia religioasă."
+    - code: car_addon
+      zones: [Z10]
+      user_msg_ro: "Decor rafinat pentru mașina mirilor, asortat cu tema generală."
+    - code: candy_bar_styling
+      zones: [Z12]
+      user_msg_ro: "Colțul dulce decorat în tema nunții."
+
+decision_tree:
+  # Conversational flow → computed fields → mapping to packages
+  computed:
+    - key: decor_volume
+      derive:
+        - if:
+            or:
+              - equals: { input: budget_decor, value: low }
+              - and:
+                  - type: number
+                    gte: { input: budget_decor, value: 0 }
+                    lt: { input: budget_decor, value: 500 }
+          then: small
+        - if:
+            or:
+              - equals: { input: budget_decor, value: medium }
+              - and:
+                  - type: number
+                    gte: { input: budget_decor, value: 500 }
+                    lte: { input: budget_decor, value: 1000 }
+          then: medium
+        - else: full
+
+  mapping_rules:
+    - name: budget_to_package
+      if:
+        any:
+          - lt_number: { input: budget_decor, value: 500 }
+          - equals: { input: budget_decor, value: low }
+      then:
+        recommend_packages: [basic_tables]
+        user_msg_ro: "Bugetul indică un decor mai simplu — punem accent pe mesele invitaților."
+    - name: mid_budget
+      if:
+        any:
+          - between_number: { input: budget_decor, min: 500, max: 1000 }
+          - equals: { input: budget_decor, value: medium }
+      then:
+        recommend_packages: [tables_plus_headtable]
+        user_msg_ro: "Buget mediu — recomand 'Mese + Masă miri' pentru un impact echilibrat."
+    - name: high_budget
+      if:
+        any:
+          - gt_number: { input: budget_decor, value: 1000 }
+          - equals: { input: budget_decor, value: high }
+      then:
+        recommend_packages: [full_hall, photo_corner_bundle]
+        user_msg_ro: "Buget generos — putem acoperi întreaga sală și un colț foto tematic."
+    - name: ceiling_request_and_allowed
+      if:
+        all:
+          - equals: { input: ceiling_decor_needed, value: true }
+          - gte_number: { input: venue_height_m, value: 3.5 }
+          - gte_number: { input: setup_window_hours, value: 4 }
+          - equals: { input: venue_type, value: indoor }
+      then:
+        add_packages: [ceiling_feature]
+        user_msg_ro: "Sala permite plafon decorativ — adăugăm un element suspendat spectaculos."
+    - name: outdoor_logic
+      if:
+        equals: { input: venue.has_outdoor_area, value: true }
+      then:
+        remove_packages: [ceiling_feature]
+        prefer_zones: [Z3, Z6, Z7, Z1, Z2]
+        user_msg_ro: "Fiind în aer liber, evităm plafonul și prioritizăm intrarea, terasa și colțul foto."
+    - name: church_add
+      if:
+        equals: { input: church_decor_needed, value: true }
+      then:
+        add_packages: [church_addon]
+        user_msg_ro: "Adăugăm pachetul pentru cununia religioasă."
+    - name: car_add
+      if:
+        equals: { input: car_decor_needed, value: true }
+      then:
+        add_packages: [car_addon]
+        user_msg_ro: "Adăugăm decorul pentru mașina mirilor."
+    - name: candy_bar_add
+      if:
+        equals: { input: candy_bar_needed, value: true }
+      then:
+        add_packages: [candy_bar_styling]
+        user_msg_ro: "Adăugăm stilizarea pentru candy bar."
+    - name: photo_corner_pref
+      if:
+        equals: { input: photo_corner_needed, value: true }
+      then:
+        add_packages: [photo_corner_bundle]
+        prefer_zones: [Z7]
+        user_msg_ro: "Am inclus un colț foto tematic pentru poze reușite."
+    - name: style_mapping_rustic_boho
+      if:
+        any:
+          - equals: { input: wedding_style, value: rustic }
+          - equals: { input: wedding_style, value: boho }
+      then:
+        prefer_materials: [linen, eco_fabrics, wood, greenery]
+        prefer_lighting: [warm_led, ambient]
+        user_msg_ro: "Stil rustic/boho — punem accent pe materiale naturale și lumini calde."
+    - name: style_mapping_modern_elegant
+      if:
+        any:
+          - equals: { input: wedding_style, value: modern }
+          - equals: { input: wedding_style, value: elegant }
+      then:
+        prefer_accessories: [mirrors, crystals]
+        prefer_palette: [white, neutral, metallic]
+        user_msg_ro: "Stil modern/elegant — folosim oglinzi, cristale și o paletă luminoasă."
+
+constraints:
+  hard_blocks:
+    - name: low_ceiling_block
+      if:
+        lt_number: { input: venue_height_m, value: 3.0 }
+      then:
+        block_zones: [Z4]
+        user_msg_ro: "Plafonul nu e recomandat — sala e prea joasă pentru montaj sigur."
+    - name: short_setup_block
+      if:
+        lt_number: { input: setup_window_hours, value: 2.0 }
+      then:
+        block_zones: [Z3, Z4]
+        user_msg_ro: "Fereastra de montaj e foarte scurtă — evităm arcadele mari și plafonul."
+    - name: candles_policy_block
+      if:
+        equals: { input: venue.allows_candles, value: false }
+      then:
+        replace:
+          candles: led
+        user_msg_ro: "Sala nu permite lumânări reale — folosim variante LED identice vizual."
+    - name: outdoor_weather_block
+      if:
+        all:
+          - equals: { input: venue.has_outdoor_area, value: true }
+          - equals: { input: weather_risk, value: high }
+      then:
+        block_materials: [tulle, thin_fabrics]
+        user_msg_ro: "Vremea instabilă nu permite materiale ușoare — alegem alternative stabile."
+  soft_penalties:
+    - name: small_room_massive_arch_penalty
+      if:
+        and:
+          - lt_number: { input: guests_count, value: 80 }
+          - equals: { input: venue_type, value: indoor }
+      then:
+        penalty_points: 5
+        user_msg_ro: "Spațiul e mai redus — reducem volumul arcadelor pentru echilibru vizual."
+    - name: low_budget_full_hall_penalty
+      if:
+        any:
+          - lt_number: { input: budget_decor, value: 1000 }
+          - equals: { input: budget_decor, value: low }
+      then:
+        penalty_points: 7
+        target_packages: [full_hall]
+        user_msg_ro: "Bugetul e strâns — 'Full Hall' devine mai puțin rentabil."
+    - name: teardown_missing_micro_penalty
+      if:
+        equals: { input: decor.fields.teardown_included, value: false }
+      then:
+        penalty_points: 2
+        user_msg_ro: "Demontarea nu este inclusă — mic minus la organizare."
+
+scoring:
+  capability:
+    # 0–100
+    weights:
+      zones_covered_ratio: 0.40
+      materials_flowers_diversity: 0.25
+      personalization_level: 0.15
+      event_types_supported: 0.10
+      reputation_feedback: 0.10
+      organization_efficiency: 0.05
+  fit:
+    # 0–100
+    weights:
+      style_match: 0.30
+      budget_fit: 0.25
+      venue_compatibility: 0.20
+      requested_zones_coverage: 0.15
+      materials_preference_match: 0.10
+  final_score:
+    formula: "0.6 * capability_score + 0.4 * fit_score"
+    thresholds:
+      excellent: ">= 80"
+      good: "60-79"
+      acceptable: "40-59"
+      not_recommended: "< 40"
+
+synergies:
+  with_venue_S:
+    checks:
+      - ceiling_height
+      - setup_time
+      - restrictions: [candles, balloons, adhesive]
+    user_msg_ro: "Verificăm condițiile sălii ca decorul să fie sigur și realist."
+  with_fx_FX:
+    blocks:
+      - "heavy_smoke_if_ceiling_low"
+    recommendations:
+      - "warm_lighting_for_photo"
+      - "avoid_confetti_if_banned"
+    user_msg_ro: "Ajustăm efectele speciale ca să nu interfereze cu decorul suspendat."
+  with_photo_video_FV:
+    flags:
+      - photo_friendly
+    focus_zones: [Z2, Z3, Z7]
+    user_msg_ro: "Evidențiem zonele care dau cele mai bune poze (masa mirilor, arcadă, colț foto)."
+  with_outfits_RC:
+    action: "harmonize_palette"
+    user_msg_ro: "Asortăm paleta de culori cu ținutele voastre."
+  with_transport_T:
+    action: "match_car_decor"
+    user_msg_ro: "Decorul mașinii va urma tema generală."
+  with_bar_B:
+    action: "keep_paths_clear_and_style_cohesive"
+    user_msg_ro: "Păstrăm traseele libere lângă bar și aliniem stilul."
+
+budget:
+  pricing_model:
+    formula: |
+      base_package_price
+      + addons (ceiling, terrace, church, car, photo_corner, candy_bar)
+      + material_tier (natural +X%, premium +Y%)
+      + urgency_fee (if setup_window < threshold)
+      + distance_fee (if > city_limit_km)
+  defaults:
+    city_transport_included: true
+    natural_flowers_uplift_pct: "20-40"
+    artificial_or_mix_discount_pct: "-10"
+    personalization_uplift:
+      semi_custom_pct: 10
+      full_custom_pct: 20
+    outdoor_setup_uplift_pct: 10
+  user_msg_ro_template: "Estimare decor: ~{{estimate_min}}–{{estimate_max}} € (pachet) + opțiuni. Transportul în oraș este inclus."
+
+ui:
+  messages:
+    intro_ro: "Decorul transformă sala într-un spațiu de poveste — e elementul care dă atmosfera și se vede în fiecare poză."
+    explain_zones_ro: "Mesele invitaților, masa mirilor, arcada de intrare, plafonul, terasa sau colțul foto — fiecare zonă poate fi decorată separat."
+    refine_questions_ro:
+      - "Ai o paletă de culori preferată?"
+      - "Vrei flori naturale, artificiale sau mixte?"
+      - "E important pentru tine decorul plafonului sau doar mesele și intrarea?"
+      - "Aveți nevoie și de decor la biserică sau la mașina mirilor?"
+      - "Vrei un colț foto special pentru invitați?"
+    good_better_best_ro:
+      good: "Mese invitați + masa mirilor"
+      better: "+ Colț foto sau arcadă intrare"
+      best: "Decor complet al sălii + plafon + terasă"
+    constraints_ro:
+      low_ceiling: "Sala e prea joasă pentru plafon, dar putem adăuga mai multă lumină ambientală."
+      limited_budget: "Bugetul e limitat — punem accent pe masa mirilor și arcadă, zonele cele mai vizibile."
+      short_setup: "Montajul e scurt — alegem un stil minimalist, dar coerent."
+      weather: "Vremea nu permite materiale ușoare — folosim elemente stabile și impermeabile."
+    closing_ro: "Alegem împreună decorul care oferă cel mai mare impact vizual, fără să depășim bugetul."
+
+helpers:
+  selection_rules:
+    vendor_filter_min_score: 70
+    style_match_threshold_pct: 70
+    price_band_tolerance_pct: 15
+  allergy_guard:
+    replace_if_allergy: true
+    user_msg_ro: "Evităm florile cu risc alergic și propunem alternative sigure."
+  learning:
+    on_like_photo_corner_pastel:
+      set:
+        photo_corner_needed: true
+        preferred_style: pastel
+      adjust:
+        budget_decor: "+10%"
+
+edge_cases:
+  outdoor_without_roof:
+    focus_zones: [Z3, Z6, Z7, Z1, Z2]
+    materials: [stable_structures, waterproof_elements]
+    user_msg_ro: "În aer liber fără acoperire, punem accent pe intrare, terasă și colțul foto, cu materiale rezistente."
+  very_low_budget:
+    recommendation: "centerpiece_only"
+    details_ro: "Aranjamente centrale cu lumânări/verde — minimal, dar elegant."
+  short_setup:
+    threshold_hours: 2
+    exclude: [Z4, "large_arches"]
+    user_msg_ro: "Montajul trebuie făcut rapid — evităm instalațiile grele."
+  allergies:
+    action: "replace_flowers_with_hypoallergenic_or_artificial"
+    user_msg_ro: "Evităm florile problematice și folosim variante artificiale premium."
+  winter_season:
+    emphasize: [warm_led, dry_florals]
+    user_msg_ro: "Pe timp rece, luminile calde și florile uscate oferă un aspect elegant și rezistent."
+  vendor_unavailable:
+    fallback:
+      price_tolerance_pct: 15
+      style_similarity_threshold_pct: 70
+    user_msg_ro: "Prima opțiune nu e disponibilă — am găsit o echipă similară ca stil și buget."
+
+acceptance:
+  criteria:
+    - "All taxonomy sections covered textually and mapped to YAML."
+    - "English logical keys; Romanian user messages."
+    - "Constraints include clear RO messages."
+    - "Good–Better–Best defined realistically."
+    - "Synergies with S#, FX#, F#/V#, RC#, T#, B# present."
+    - "No breaking changes to taxonomy; new keys listed under proposals."
+
+

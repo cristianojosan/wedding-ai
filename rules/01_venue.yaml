@@ -1,0 +1,255 @@
+# ===============================================
+#  CATEGORY: venue (S#)
+# ===============================================
+  venue:
+    version: 2.0
+    language: [ro, ru]
+
+    description: >
+      Logica completă pentru selecția și evaluarea sălilor de nuntă (S#).
+      Include potrivirea capacității, bugetului, meniurilor, candy bar-urilor,
+      decorului, efectelor speciale și comportamentul conversațional empatic.
+
+    required_inputs:
+      - guests.total
+      - city
+
+    conversational_behavior:
+      detect_city_soft: true
+      allow_cross_city: true
+      user_message.cross_city: "Am reținut că preferați {{city}}, dar am găsit o sală potrivită și în {{alt_city}} — doar ca să o vedeți ca referință."
+      detect_month_from_context: true
+      ask_date_explicit: false
+      ask_dancefloor_direct: false
+      ask_event_atmosphere: true
+      user_message.event_atmosphere: "Cum vă imaginați nunta — mai liniștită sau cu dans și energie toată seara?"
+      infer_dancefloor_need: true
+      tone: "empatic, profesionist, realist"
+      max_questions: 4
+      question_sequence:
+        - region_or_radius_km
+        - guests_count
+        - desired_atmosphere
+        - terrace_or_garden
+      user_message.feedback: "Spuneți-mi ce v-a plăcut și ce nu v-a plăcut la fiecare sală — m-ați ajuta să rafinez rezultatele."
+
+    hard_checks:
+      - name: capacity_limit
+        if: "venue.fields.capacity_max * 1.07 < context.guests_count"
+        then: "exclude"
+        message: "Sala nu poate acomoda numărul de invitați chiar și cu toleranță maximă."
+
+
+    capacity_fit:
+      min_fill_ratio: 0.85
+      max_fill_ratio: 1.07
+      user_message.capacity:
+       under: "Sala va părea prea goală cu mai puțin de 85% din locuri ocupate — recomand o sală mai mică sau amenajare compactă."
+       ideal: "Perfect echilibrat — invitații ocupă între 85% și 107% din locuri."
+       over: "Se pot adăuga câteva locuri în plus, dar invitații vor sta mai strâns la mese."
+
+      scoring_formula: >
+       ratio = context.guests_count / venue.fields.capacity_max
+       if ratio < 0.85: score = 0.6
+       elif ratio > 1.07: score = 0.0
+       elif ratio > 1.0: score = 0.8
+       else: score = 1.0
+
+
+    pricing:
+      model: per_person
+      estimation_formula: >
+        effective_guests = max(guests.total, pricing.min_guarantee_guests)
+        estimated_cost = mean(price_per_person_estimate) * effective_guests
+      explanation: "Costul final depinde de meniul ales (Standard / Gold / Premium). Băuturile nu sunt incluse — se aduc de către miri."
+
+    menu_quality:
+      inputs:
+        - courses_count
+        - protein_diversity
+        - dietary_options
+        - late_snack
+        - tasting_available
+        - food_rating
+        - plating_level
+        - price_per_person
+        - menus_available
+      scoring:
+        courses_count:
+          3: 40
+          4: 55
+          5: 65
+          6+: 75
+        protein_diversity: "+8 per tip, max +16"
+        dietary_options: "+6 (≥1) / +10 (≥2)"
+        late_snack: +6
+        tasting_available: +4
+        food_rating:
+          low: 0
+          med: 6
+          high: 12
+        plating_level:
+          simplu: 0
+          ok: 4
+          premium: 8
+      value_formula: "MenuValue = MenuQuality / (price_per_person / 1000)"
+      weight: 0.18
+      thresholds:
+        good: 55
+        better: 70
+        best: 85
+      adjust_if:
+        prioritize_food: "+10% weight"
+
+    candybar_quality:
+      inputs:
+        - available
+        - variants_count
+        - items_count
+        - categories_count
+        - premium_elements_count
+        - quantity_per_guest
+        - replenishment
+      scoring:
+        items_count:
+          8: 40
+          12: 55
+          16: 65
+          20+: 75
+        categories_count: "+4 per categorie (max +24)"
+        premium_elements_count: "+6 fiecare (max +12)"
+        quantity_per_guest: +8
+        replenishment: +6
+      weight: 0.10
+      thresholds:
+        good: 40
+        better: 55
+        best: 70
+      adjust_if:
+        prioritize_aesthetics: "+10% weight"
+      note: "Lipsa candy barului nu penalizează sala; doar lipsește bonusul."
+
+    features:
+      consider:
+        - terrace
+        - dancefloor_size
+        - distance_from_city
+        - ceremony_space
+      ignore:
+        - parking
+      terrace_bonus_weight: 0.05
+      ring_match_weight: 0.15
+      distance_weight: 0.10
+
+    decor_policy:
+      if venue.fields.decor_included: "Decor standard inclus."
+      if venue.fields.decor_extra: "Decor opțional (extra cost)."
+      if not venue.fields.decor_included: "Necesită furnizor extern (categoria D#)."
+
+    effects_and_lighting:
+      interpret:
+        - laser_light
+        - allows_heavy_smoke
+        - decorative_lighting
+        - sound_system
+        - dj_booth
+      rules:
+        - if not allowed: "Menționează interdicția dar nu exclude sala."
+        - if dj_booth is None: "Adaugă notiță: necesită echipament extern."
+        - if fx_allowed: "Badge: FX compatibilă."
+
+    program_and_curfew:
+      display:
+        - start_time
+        - curfew
+        - overtime_fee
+      if curfew < "02:00":
+        warn: "Sala are oră limită pentru muzică ({{curfew}}). Verificați posibilitatea de prelungire."
+      if overtime_fee:
+        note: "Ore suplimentare posibile contra cost."
+
+    ceremony_space:
+      if venue.fields.has_ceremony_space:
+        badge: "Spațiu pentru ceremonie simbolică"
+        explain: "Tip: {{tip}} | Cost: {{cost}} | Capacitate: {{cap}} persoane"
+      else:
+        suggest: "Ceremonia poate fi organizată la biserică sau în alt spațiu decorativ."
+
+    general_policies:
+      allows_external_catering: "❌ — nu este acceptat"
+      allows_external_decor: "da/nu conform bazei de date"
+      allows_external_bar: "da/nu conform bazei de date"
+      fx_permit: "da/nu/partial"
+      deposit_pct: "afișează procent sau sumă"
+      cancel_policy: "afișează termen și procent rambursabil"
+      accessibility: "Badge: Accesibilitate: da"
+
+    budget_behavior:
+      if budget_set:
+        tolerance: 0.15
+        message_over_budget: "Această sală depășește ușor bugetul (+10%), dar oferă avantaje semnificative."
+      else:
+        mode: "quality_first"
+        message: "Vă arăt cele mai bune opțiuni, indiferent de preț."
+      display_menu_level: true
+
+    contrasting_options:
+      - name: FX-ready
+        focus: "Efecte compatibile, ring mare, fără restricții curfew."
+      - name: Candy-bar & decor
+        focus: "Accent pe deserturi, photo corner, look vizual elegant."
+      - name: Meniu premium
+        focus: "Mâncare bogată, atmosferă rafinată, terasă posibilă."
+      budget_respect: "+/- 15% dacă bugetul este setat."
+      default_labels: ["premium", "mediu", "economic"]
+
+    alerts:
+      - if terrace or exterior:
+          message: "Spațiile exterioare pot implica risc meteo și cost logistic."
+      - if curfew:
+          message: "Oră limită de muzică – verificați condițiile."
+      - if fx_forbidden:
+          message: "Alternativă: lumini ambientale sau confetti eco."
+      - if bar_policy == 'dop':
+          message: "Taxă pentru băuturile aduse de miri (dop)."
+      - if allows_external_bar == false:
+          message: "Bar extern interzis – verificați opțiunile interne."
+
+    explain_compare:
+      display_fields:
+        - capacity
+        - terrace
+        - garden
+        - fx_compatibility
+        - menu_level
+        - candy_bar
+        - curfew
+        - dj_booth
+        - bar_policy
+        - price_estimate
+      custom_comment: "De ce pentru voi: explicație scurtă personalizată pe preferințe."
+
+    learned_preferences:
+      - prefer_fx
+      - prefer_candybar_level
+      - prefer_menu_level
+      - need_terrace_garden
+      - price_sensitivity
+      - look_priority
+      - dancefloor_priority
+
+    score_weights:
+      fit_capacity: 0.35
+      menu_quality_weight: 0.18
+      candybar_quality_weight: 0.10
+      features_match: 0.20
+      location_distance: 0.07
+      price_fit: 0.10
+
+    tiers:
+      good:
+        description: "Meniu corect, preț bun; fără candy bar inclus."
+      better:
+        description: "Meniu bogat + candy bar decent; echilibru calitate/preț."
+      best:
+        description: "Meniu premium + candy bar spectaculos, perfect pentru o nuntă elegantă."

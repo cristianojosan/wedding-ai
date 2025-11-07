@@ -1,0 +1,882 @@
+file_version: 1.0
+last_update: 2025-11-02
+categories:
+# ===============================================
+#  CATEGORY: place (S#)
+# ===============================================
+  sala:
+    version: 2.0
+    language: [ro, ru]
+
+    description: >
+      Logica completă pentru selecția și evaluarea sălilor de nuntă (S#).
+      Include potrivirea capacității, bugetului, meniurilor, candy bar-urilor,
+      decorului, efectelor speciale și comportamentul conversațional empatic.
+
+    required_inputs:
+      - guests.total
+      - city
+
+    conversational_behavior:
+      detect_city_but_not_strict: true
+      allow_recommendations_outside_city: true
+      cross_city_explanation: "Am reținut că preferați {{city}}, dar am găsit o sală potrivită și în {{alt_city}} — doar ca să o vedeți ca referință."
+      detect_month_from_context: true
+      ask_for_date_explicitly: false
+      ask_for_ring_directly: false
+      ask_for_event_atmosphere: true
+      event_atmosphere_prompt: "Cum vă imaginați nunta — mai liniștită sau cu dans și energie toată seara?"
+      infer_dancefloor_need: true
+      tone: "empatic, profesionist, realist"
+      max_questions: 4
+      question_sequence:
+        - regiune_ou_raza_km
+        - numar_invitați
+        - atmosfera_dorită
+        - terasa_sau_grădină
+      feedback_prompt: "Spuneți-mi ce v-a plăcut și ce nu v-a plăcut la fiecare sală — m-ați ajuta să rafinez rezultatele."
+
+    hard_checks:
+      - name: capacity_limit
+        rule: "venue.capacity * 1.07 >= guests.total"
+        fail_action: "exclude"
+        fail_message: "Sala nu poate acomoda numărul de invitați chiar și cu toleranță maximă."
+      - name: fx_policy_soft_block
+        rule: "if fx.requested in venue.restricted_fx then downgrade"
+        fail_message: "Sala nu permite efectul {{fx.requested}} — restul criteriilor rămân potrivite."
+
+    capacity_logic:
+      min_fill_ratio: 0.85
+      max_fill_ratio: 1.07
+      explain_messages:
+        underfilled: "Sala va părea prea goală cu mai puțin de 85% din locuri ocupate — recomand o sală mai mică sau amenajare compactă."
+        ideal: "Perfect echilibrat — invitații ocupă între 85% și 107% din locuri."
+        overfilled: "Se pot adăuga câteva locuri în plus, dar invitații vor sta mai strâns la mese."
+      scoring_formula: >
+        ratio = guests.total / venue.capacity
+        if ratio < 0.85: score = 0.6
+        elif ratio > 1.07: score = 0.0
+        elif ratio > 1.0: score = 0.8
+        else: score = 1.0
+
+    pricing:
+      model: per_person
+      price_per_person_estimate: [800, 1100]
+      min_guarantee_guests: 150
+      estimation_formula: >
+        effective_guests = max(guests.total, pricing.min_guarantee_guests)
+        estimated_cost = mean(price_per_person_estimate) * effective_guests
+      explanation: "Costul final depinde de meniul ales (Standard / Gold / Premium). Băuturile nu sunt incluse — se aduc de către miri."
+
+    menu_quality:
+      inputs:
+        - numar_feluri
+        - diversitate_proteine
+        - optiuni_dietare
+        - gustare_noapte
+        - degustare
+        - rating_mancare
+        - plating
+        - pret_pers
+        - meniuri_disponibile
+      scoring:
+        numar_feluri:
+          3: 40
+          4: 55
+          5: 65
+          6+: 75
+        diversitate_proteine: "+8 per tip, max +16"
+        optiuni_dietare: "+6 (≥1) / +10 (≥2)"
+        gustare_noapte: +6
+        degustare: +4
+        rating_mancare:
+          low: 0
+          med: 6
+          high: 12
+        plating:
+          simplu: 0
+          ok: 4
+          premium: 8
+      value_formula: "MenuValue = MenuQuality / (pret_pers / 1000)"
+      weight: 0.18
+      thresholds:
+        good: 55
+        better: 70
+        best: 85
+      adjust_if:
+        prioritize_food: "+10% weight"
+
+    candybar_quality:
+      inputs:
+        - disponibilitate
+        - nr_variante
+        - nr_articole
+        - categorii_dulciuri
+        - elemente_premium
+        - cantitate_per_guest
+        - replenishment
+      scoring:
+        nr_articole:
+          8: 40
+          12: 55
+          16: 65
+          20+: 75
+        categorii_dulciuri: "+4 per categorie (max +24)"
+        elemente_premium: "+6 fiecare (max +12)"
+        cantitate_per_guest: +8
+        replenishment: +6
+      weight: 0.10
+      thresholds:
+        good: 40
+        better: 55
+        best: 70
+      adjust_if:
+        prioritize_aesthetics: "+10% weight"
+      note: "Lipsa candy barului nu penalizează sala; doar lipsește bonusul."
+
+    features:
+      consider:
+        - terrace
+        - dancefloor_size
+        - distance_from_city
+        - ceremony_space
+      ignore:
+        - parking
+      terrace_bonus_weight: 0.05
+      ring_match_weight: 0.15
+      distance_weight: 0.10
+
+    decor_policy:
+      if venue.decor_inclus: "Decor standard inclus."
+      if venue.decor_extra: "Decor opțional (extra cost)."
+      if not venue.decor_inclus: "Necesită furnizor extern (categoria D#)."
+
+    effects_and_lighting:
+      interpret:
+        - light_laser
+        - fum_greu
+        - iluminare_decorativa
+        - sistem_sunet
+        - dj_booth
+      rules:
+        - if not allowed: "Menționează interdicția dar nu exclude sala."
+        - if dj_booth is None: "Adaugă notiță: necesită echipament extern."
+        - if fx_allowed: "Badge: FX compatibilă."
+
+    program_and_curfew:
+      display:
+        - start_time
+        - curfew
+        - overtime_fee
+      if curfew < "02:00":
+        warn: "Sala are oră limită pentru muzică ({{curfew}}). Verificați posibilitatea de prelungire."
+      if overtime_fee:
+        note: "Ore suplimentare posibile contra cost."
+
+    ceremony_space:
+      if venue.ceremonie_simbolica:
+        badge: "Spațiu pentru ceremonie simbolică"
+        explain: "Tip: {{tip}} | Cost: {{cost}} | Capacitate: {{cap}} persoane"
+      else:
+        suggest: "Ceremonia poate fi organizată la biserică sau în alt spațiu decorativ."
+
+    general_policies:
+      catering_extern: "❌ — nu este acceptat"
+      decor_extern: "da/nu conform bazei de date"
+      bar_extern: "da/nu conform bazei de date"
+      fx_permit: "da/nu/partial"
+      avans_rezervare: "afișează procent sau sumă"
+      politica_anulare: "afișează termen și procent rambursabil"
+      acces_dizabilitati: "Badge: Accesibilitate: da"
+
+    budget_behavior:
+      if buget_setat:
+        tolerance: 0.15
+        message_over_budget: "Această sală depășește ușor bugetul (+10%), dar oferă avantaje semnificative."
+      else:
+        mode: "quality_first"
+        message: "Vă arăt cele mai bune opțiuni, indiferent de preț."
+      display_menu_level: true
+
+    contrasting_options:
+      - name: FX-ready
+        focus: "Efecte compatibile, ring mare, fără restricții curfew."
+      - name: Candy-bar & decor
+        focus: "Accent pe deserturi, photo corner, look vizual elegant."
+      - name: Meniu premium
+        focus: "Mâncare bogată, atmosferă rafinată, terasă posibilă."
+      budget_respect: "+/- 15% dacă bugetul este setat."
+      default_labels: ["premium", "mediu", "economic"]
+
+    alerts:
+      - if terrace or exterior:
+          message: "Spațiile exterioare pot implica risc meteo și cost logistic."
+      - if curfew:
+          message: "Oră limită de muzică – verificați condițiile."
+      - if fx_interzis:
+          message: "Alternativă: lumini ambientale sau confetti eco."
+      - if bar_policy == 'dop':
+          message: "Taxă pentru băuturile aduse de miri (dop)."
+      - if bar_extern == false:
+          message: "Bar extern interzis – verificați opțiunile interne."
+
+    explain_compare:
+      display_fields:
+        - capacity
+        - terrace
+        - garden
+        - fx_compatibility
+        - menu_level
+        - candy_bar
+        - curfew
+        - dj_booth
+        - bar_policy
+        - price_estimate
+      custom_comment: "De ce pentru voi: explicație scurtă personalizată pe preferințe."
+
+    learned_preferences:
+      - prefer_fx
+      - prefer_candybar_level
+      - prefer_menu_level
+      - need_terrace_garden
+      - price_sensitivity
+      - look_priority
+      - dancefloor_priority
+
+    score_weights:
+      fit_capacity: 0.35
+      menu_quality_weight: 0.18
+      candybar_quality_weight: 0.10
+      features_match: 0.20
+      location_distance: 0.07
+      price_fit: 0.10
+
+    tiers:
+      good:
+        description: "Meniu corect, preț bun; fără candy bar inclus."
+      better:
+        description: "Meniu bogat + candy bar decent; echilibru calitate/preț."
+      best:
+        description: "Meniu premium + candy bar spectaculos, perfect pentru o nuntă elegantă."
+
+
+# ===============================================
+#  CATEGORY: music (M#)
+# ===============================================
+
+category: "M#"
+name: "Muzică & Moderator"
+version: "1.0"
+description: >
+  Reguli pentru recomandarea furnizorilor muzicali: DJ, Solist, MiniBand, Band, Orchestră, MixModern, cu opțiunea Moderator (MC).
+  Include clasificare, constrângeri pe sală, scorare, sinergii și șabloane UI.
+
+inputs:
+  required:
+    - guests_count
+  optional:
+    - budget_music        # number or {low|medium|high}
+    - wedding_style       # {modern|elegant|rustic|tradițional|club|mixt}
+    - venue:
+        has_stage: boolean
+        min_stage_area_m2: number
+        noise_restrictions: boolean
+        is_outdoor: boolean
+        menu_price: number
+    - languages_needed    # {RO|RU|RO+RU}
+    - music_preferences   # list: [populara, international, retro, etno, live_only, club]
+    - package_preference  # {DJ|Solist|MiniBand|Band|Orchestra|MixModern|Nehotarat}
+    - timeline:
+        start: "HH:MM"
+        end: "HH:MM"
+        afterparty: boolean
+    - age_mix             # {tineri|mix|traditional}
+    - wants_moderator     # {yes|no|auto}
+
+packages:
+  # tipologii + atribute de bază (range-uri orientative, pot fi override per vendor)
+  - code: DJ
+    title: "DJ"
+    team_size: 1
+    mc_options: ["none", "team_mc_optional", "separate"]
+    price_range_eur: [600, 900]
+    ideal_guests: [60, 150]
+    energy: "high"
+    includes: ["audio_system", "basic_lights"]
+    tags: ["modern","urban","dance"]
+  - code: DJ_MC
+    extends: DJ
+    title: "DJ + MC"
+    team_size: 2
+    price_range_eur: [1000, 1300]
+  - code: SOLIST
+    title: "Solist"
+    team_size: 1
+    instrument_options: ["none","clapa"]
+    price_range_eur: [900, 1200]
+    ideal_guests: [80, 160]
+    energy: "medium-high"
+    mc_options: ["team_mc_optional","separate","none"]
+    dj_option: true
+    tags: ["live","elegant","romantic"]
+  - code: SOLIST_DJ_MC
+    title: "Solist + DJ + MC"
+    team_size: 3
+    price_range_eur: [1500, 2100]
+  - code: MINIBAND
+    title: "Solist cu echipă (MiniBand)"
+    team_size: 3
+    team_range: [2, 4]
+    instruments: ["clapa","chitara","saxofon","tobe"]
+    price_range_eur: [1300, 1800]
+    ideal_guests: [100, 200]
+    energy: "high"
+    mc_options: ["team_mc_optional","separate","none"]
+    dj_option: true
+    tags: ["live","band_mic","modern"]
+  - code: BAND
+    title: "Band complet"
+    team_size: 6
+    team_range: [5, 7]
+    instruments: ["clapa","chitara","bas","saxofon","tobe","voce_f","voce_m"]
+    price_range_eur: [2000, 3500]
+    ideal_guests: [120, 300]
+    energy: "very_high"
+    mc_options: ["team_mc_optional","separate"]
+    dj_option: true
+    tags: ["live","concert","premium"]
+  - code: ORCHESTRA
+    title: "Orchestră tradițională"
+    team_size: 8
+    team_range: [6, 10]
+    styles: ["traditionala_autentica","mixta","etno_moderna"]
+    price_range_eur: [2500, 4000]
+    ideal_guests: [150, 400]
+    energy: "very_high"
+    mc_options: ["team_mc_required"]
+    dj_option: "afterparty_optional"
+    tags: ["folclor","etno","tradițional"]
+  - code: MIXMODERN
+    title: "Mix modern (DJ + instrumentist)"
+    team_size: 2
+    instruments: ["saxofon","vioara","trompeta","percutii"]
+    price_range_eur: [1200, 1800]
+    ideal_guests: [70, 150]
+    energy: "high"
+    mc_options: ["separate","none"]
+    tags: ["modern","live_mix","trend"]
+
+decision_tree:
+  # selectează pachetul *de start* dacă mirii sunt nehotărâți (se re-scorează apoi pe vendorii concreți)
+  steps:
+    - if: "package_preference == 'DJ' or package_preference == 'Nehotarat'"
+      choose:
+        - when: "guests_count < 80"
+          package: "DJ_MC"
+        - else:
+          package: "DJ"
+    - if: "package_preference == 'Solist'"
+      choose:
+        - when: "guests_count <= 160"
+          package: "SOLIST_DJ_MC"
+        - else:
+          package: "SOLIST"
+    - if: "package_preference == 'MiniBand'"
+      choose:
+        - when: "guests_count in [100,200]"
+          package: "MINIBAND"
+    - if: "package_preference == 'Band'"
+      choose:
+        - when: "guests_count >= 120"
+          package: "BAND"
+    - if: "package_preference == 'Orchestra'"
+      choose:
+        - when: "guests_count >= 150"
+          package: "ORCHESTRA"
+    - if: "package_preference == 'MixModern'"
+      choose:
+        - package: "MIXMODERN"
+    - if: "package_preference == 'Nehotarat'"
+      choose:
+        - when: "wedding_style in ['tradițional'] or age_mix == 'traditional'"
+          package: "ORCHESTRA"
+        - when: "wedding_style in ['modern','elegant','club'] and guests_count between 80 and 160"
+          package: "DJ_MC"
+        - when: "guests_count between 100 and 200"
+          package: "MINIBAND"
+        - else:
+          package: "MIXMODERN"
+
+constraints:
+  hard_blocks:
+    - rule: "venue.noise_restrictions == true"
+      exclude_packages: ["BAND","ORCHESTRA","MINIBAND"]
+      reason: "Restricții de zgomot ale sălii."
+    - rule: "venue.is_outdoor == true and vendor.has_outdoor_protection == false"
+      exclude_all: true
+      reason: "Echipamente neprotejate pentru outdoor."
+  soft_penalties:
+    - rule: "venue.has_stage == false"
+      downgrade: ["BAND","ORCHESTRA","MINIBAND"]
+      reason: "Nu există scenă; preferă echipe compacte."
+    - rule: "budget_music < 700"
+      downgrade: ["BAND","ORCHESTRA","MINIBAND"]
+      suggest: ["DJ","SOLIST"]
+    - rule: "languages_needed == 'RO+RU'"
+      require_vendor_field: "mc_languages includes 'RO+RU'"
+
+scoring:
+  total: 100
+  weights:
+    quality_experience: 25        # reviews, ani, portofoliu, echipamente
+    mc_score: 15                  # vezi mc_scoring
+    budget_fit: 20               # penalizare la depășire >10%
+    venue_compat: 15             # scenă, zgomot, outdoor
+    tech_gear: 10                # sunet, lumini, microfoane, fum
+    synergies: 5                 # colaborări și compatibilități
+    style_match: 10              # potrivire cu preferințele mirilor
+  mc_scoring:
+    weights:
+      hall_recommendations: 30   # 1 reco=10p, 3+=30p
+      years_experience: 20       # 1p/an, max 20
+      lead_time_months: 20       # 12m=20, 9m=15, 6m=10, <3m=5
+      punctual_organization: 10  # feedback sală
+      languages: 10              # RO=5, RO+RU=10
+      own_team: 5                # are DJ/sunetist stabil
+      clear_pricing: 5           # ofertă clară
+  formulas:
+    budget_fit: "max(0, 1 - max(0, (price_est - budget_music)/budget_music)) * 100"
+    venue_compat: >
+      case noise_restrictions: if vendor.loud_profile then 0 else 100;
+      + stage_bonus if has_stage and vendor.requires_stage;
+      clipped 0..100
+    final_score: >
+      sum_component_weights_normalized
+
+synergies:
+  - with: "S#"
+    rules:
+      - if: "venue.noise_restrictions"
+        action: "downgrade BAND, ORCHESTRA, MINIBAND"
+      - if: "venue.has_stage and package in ['MINIBAND','BAND','ORCHESTRA']"
+        action: "small bonus"
+  - with: "FX#"
+    rules:
+      - if: "package in ['DJ','DJ_MC','MINIBAND','BAND','ORCHESTRA','MIXMODERN']"
+        suggest: ["heavy_fog_if_allowed","dancefloor_lights"]
+      - if: "venue.disallows_heavy_smoke"
+        block: ["heavy_fog"]
+  - with: "D#"
+    rules:
+      - if: "stage_decor_dense and package in ['MINIBAND','BAND','ORCHESTRA']"
+        action: "warn for space & setup timing"
+  - with: "F#/V#"
+    rules:
+      - if: "strong_stage_lights"
+        action: "suggest photo_friendly preset at moments"
+
+budget:
+  compute:
+    - meal_cost: "team_size * venue.menu_price"
+    - base: "vendor.music_fee"
+    - extras: "mc_extra + dj_extra + instrumentist_extra + overtime + transport"
+    - fx_addons: "optional"
+    - total: "base + extras + meal_cost + fx_addons"
+  expose_fields: ["music_fee","extras","meal_cost","total"]
+
+ui:
+  cards:
+    - key: "DJ_MC"
+      title: "DJ + Moderator"
+      ideal: "60–150 invitați, modern/elegant"
+      note: "energie de club, dans continuu"
+    - key: "SOLIST_DJ_MC"
+      title: "Solist + DJ + MC"
+      ideal: "80–160 invitați"
+      note: "emoție live + continuitate"
+    - key: "BAND"
+      title: "Band complet + MC"
+      ideal: "120–300 invitați"
+      note: "vibe de concert; 6–8 locuri la masă"
+    - key: "ORCHESTRA"
+      title: "Orchestră + MC"
+      ideal: "150–400 invitați"
+      note: "tradițional autentic, energie mare"
+    - key: "MIXMODERN"
+      title: "DJ + sax/violin"
+      ideal: "70–150 invitați / afterparty"
+      note: "trend 2025, elegant & energic"
+
+  messages:
+    intro: >
+      Hai să vorbim puțin despre muzică 🎶 Atmosfera e jumătate din frumusețea unei nunți —
+      depinde de cine pune muzica, cum se comunică cu invitații și cum se ține ritmul serii.
+      Îți arăt pe scurt variantele și te ghidez până alegem împreună formatul perfect.
+
+    education_summary: >
+      Opțiunile principale sunt: DJ + MC (energie modernă), Solist + DJ (emoție live + flux),
+      MiniBand / Band (spectacol live), Orchestră (tradițional & etno), Mix modern (DJ + sax/violin).
+      În toate cazurile, MC-ul e recomandat (uneori inclus/obligatoriu).
+
+    budget_explain_template: >
+      La formații mai mari trebuie să ții cont și de mesele pentru echipă.
+      Dacă meniul la sală este {{menu_price}} lei, iar echipa are {{team_size}} persoane,
+      adaugi aproximativ {{meal_cost_lei}} lei ({{team_size}} × {{menu_price}}) în bugetul total.
+      Ex.: pentru un band de 7, la 1000 lei/meniu, e încă 7000 lei.
+
+    show_examples_prompt: >
+      Îți arăt cinci exemple ca să vezi diferențele de energie și stil (video scurte):
+      1) DJ + MC, 2) Solist + DJ + MC, 3) Band + MC, 4) Orchestră + MC, 5) Mix modern.
+      După ce le vezi, spune-mi ce vibe te atrage: modern & club, live cu momente,
+      tradițional sau un mix elegant?
+
+    refine_questions: >
+      Câți invitați estimați? (acum: {{guests_count}})
+      Ce stil vă reprezintă mai mult (modern / tradițional / mixt)? (acum: {{style}})
+      Aveți sală aleasă? Are restricții de zgomot sau scenă? ({{venue_name}})
+      Preferiți MC inclus în echipă sau separat (mai personalizat)? ({{mc_label}})
+
+    reco_gbb_template: >
+      Pe baza a ce mi-ați spus, aș porni cu:
+      • Good — {{good_title}} (~{{good_total_eur}} €) + mese echipă ~{{good_meals_lei}} lei
+      • Better — {{better_title}} (~{{better_total_eur}} €) + mese echipă ~{{better_meals_lei}} lei
+      • Best — {{best_title}} (~{{best_total_eur}} €) + mese echipă ~{{best_meals_lei}} lei
+      Vreți să deschidem detaliile pentru una dintre opțiuni?
+
+    noise_restriction_notice: >
+      Sala are restricții de zgomot, așa că Band/Orchestră nu sunt ideale aici.
+      Îți propun DJ + MC sau Solist + DJ — păstrăm energia ridicată și controlul volumului,
+      fără riscul de a încălca regulile locației.
+
+    small_stage_notice: >
+      Spațiul pentru scenă e mai compact. Ca să nu aglomerăm locul,
+      recomand DJ + MC sau Solist + DJ; dacă vrei sunet live mai bogat,
+      un MiniBand mic (2–3 membri) rămâne în grafic, fără set-up voluminos.
+
+    fx_upsell_tip: >
+      Dacă alegem DJ/Band, merită pachet de lumini și fum greu pentru dansul mirilor (dacă sala permite).
+      Pot seta și un preset „photo-friendly” în momentele cheie, ca să iasă fotografiile impecabile.
+
+    confirm_selection_template: >
+      Perfect, mergem pe {{package}}.
+      Rezumat: prestatori ≈ {{price_eur}} €, mese echipă ≈ {{meal_cost_lei}} lei
+      ({{team_size}} × {{menu_price}}). Vrei să-ți trimit și 2 alternative apropiate ca preț,
+      ca să comparăm side-by-side?
+
+    empathetic_close: >
+      Nu există alegere greșită — important e să vă reprezinte stilul.
+      Eu rămân aici, ajustăm pachetul când vrei (MC separat, instrumentist, afterparty),
+      și verific pentru voi disponibilitatea furnizorilor preferați.
+
+helpers:
+  formatters:
+    # Calculează automat costul meselor pentru echipă
+    meal_cost_lei:
+      args: ["team_size", "menu_price"]
+      expr: "team_size * menu_price"   # evaluată de motorul tău de reguli
+
+    # Pachete Good–Better–Best: generează sumar cu totaluri și mese
+    gbb_summary:
+      args:
+        - "good.team_size"
+        - "good.menu_price"
+        - "good.total_eur"
+        - "better.team_size"
+        - "better.menu_price"
+        - "better.total_eur"
+        - "best.team_size"
+        - "best.menu_price"
+        - "best.total_eur"
+      returns:
+        good_meals_lei: "good.team_size * good.menu_price"
+        better_meals_lei: "better.team_size * better.menu_price"
+        best_meals_lei: "best.team_size * best.menu_price"
+        good_total_eur: "good.total_eur"
+        better_total_eur: "better.total_eur"
+        best_total_eur: "best.total_eur"
+
+
+# ===============================================
+#  CATEGORY: Photograph & Videograph (FV#)
+# ===============================================
+
+F#:
+  category: "Fotograf"
+  decision_inputs:
+    required:
+      - data_sau_interval
+      - locatii # biserica / sedinta / sala + adrese + timpi transfer
+      - nr_invitati
+      - buget_foto # sau buget_total_FV, daca nu exista separat
+      - stil_foto_preferat # documentar | editorial | traditional | moody | luminos
+      - ore_acoperire
+      - livrabile_foto_dorite # nr_imagini_editate, album, social_vertical
+      - termen_foto_dorit
+      - limba_comunicare
+      - preferinta_echipa_FV # echipa comuna sau furnizori separati
+      - politici_confidentialitate # no-share, RAW on request, GDPR/minori
+    optional:
+      - exemple_stil # linkuri/imagini
+  hard_filters:
+    - disponibilitate_la_data
+    - acoperire_zona_si_deplasare
+    - capacitate_orara_si_multilocatie
+    - reguli_locatii_si_legal # ex: biserica fara flash/trepied
+    - regula_buget: "nu recomanda > +25% peste buget tinta decat daca scor_final >= 85"
+  rating_weights: # suma 100
+    recomandari_sali: 30
+    ani_experienta: 20
+    evenimente_pe_an: 15
+    calitatea_pachetelor_si_livrabilelor: 15
+    termen_livrare_foto: 10
+    raport_pret_valoare: 10
+  scoring_guidelines:
+    recomandari_sali:
+      praguri:
+        bun: ">= 1 sala"
+        foarte_bun: ">= 3 sali"
+      nota: "Principalul indicator la inceput."
+    ani_experienta:
+      scale: "1-3 incepator; 4-7 mediu; 8+ profesionist"
+    evenimente_pe_an:
+      scale: "10-15 activ; 20+ foarte_solicitat"
+    termen_livrare_foto:
+      scale: "<= 1.5 luni excelent; 2-3 luni standard; 4+ luni lent"
+    calitatea_pachetelor_si_livrabilelor:
+      semnale:
+        - album_inclus
+        - editare_consecventa
+        - galerie_online
+        - layout_album + revizii_incluse
+        - backup_si_failover
+    raport_pret_valoare:
+      descriere: "mult in pachet la pret moderat => scor bun"
+  levels_labels:
+    - range: "85-100"
+      nivel: "⭐ Top recomandat"
+      eticheta_ai: "Foarte solicitat si apreciat"
+    - range: "70-84"
+      nivel: "👍 Profesionist stabil"
+      eticheta_ai: "Recomandat des de sali"
+    - range: "50-69"
+      nivel: "⚙️ Mediu"
+      eticheta_ai: "Oferta echilibrata, experienta moderata"
+    - range: "<50"
+      nivel: "🌱 In crestere"
+      eticheta_ai: "Fotograf nou sau cu putine recomandari"
+  outputs_explain_compare_axes:
+    - Stil
+    - Ore_acoperire
+    - Livrabile # album, nr foto, social
+    - Termene
+    - Recomandari_sali
+    - Experienta # ani + evenimente/an
+    - Pret_si_valoare
+  recommendation_strategy:
+    good_better_best: true
+    nota: "Propune 3 optiuni (Good/Better/Best) in functie de stil, nivel si buget."
+
+V#:
+  version: 1.0
+  category: "Videograf"
+  decision_inputs:
+    required:
+      - data_sau_interval
+      - locatii # biserica / sedinta / sala + adrese + timpi transfer
+      - nr_invitati
+      - buget_video # sau buget_total_FV, daca nu exista separat
+      - stil_video_preferat # cinematic | natural | documentar
+      - ore_acoperire
+      - preferinta_operatori # 1_operator | 2_operatori
+      - dorinta_drona # da/nu
+      - after_party # da/nu
+      - livrabile_video_dorite # teaser/clip_rezumat/film_complet/digital_only
+      - termen_video_dorit
+      - limba_comunicare
+      - preferinta_echipa_FV # echipa comuna sau furnizori separati
+      - politici_confidentialitate # licente_muzica, GDPR/minori
+  hard_filters:
+    - disponibilitate_la_data
+    - acoperire_zona_si_deplasare
+    - capacitate_orara_si_multilocatie
+    - reguli_locatii_si_legal # drona NFZ/licenta/asigurare; restrictii biserica
+    - regula_buget: "nu recomanda > +25% peste buget tinta decat daca scor_final >= 85"
+  rating_weights: # suma 100
+    recomandari_sali: 25
+    ani_experienta: 20
+    evenimente_pe_an: 15
+    complexitate_pachet: 15 # film complet + clip rezumat + drona + echipa
+    termen_livrare_video: 10
+    raport_pret_valoare: 10
+    calitate_tehnica_echipament: 5 # 4K/1080p, stabilizator, drona, lumini, microfoane/recorder
+  scoring_guidelines:
+    recomandari_sali:
+      praguri:
+        bun: "1-2 sali"
+        foarte_bun: ">= 3 sali"
+      nota: "Cel mai relevant indicator local de reputatie."
+    ani_experienta:
+      scale: "1-3 incepator; 4-7 mediu; 8+ profesionist"
+    evenimente_pe_an:
+      scale: "10-15 activ; 20+ foarte_solicitat"
+    termen_livrare_video:
+      scale: "<= 2 luni excelent; 2-3 luni standard; 4+ luni lent"
+    complexitate_pachet:
+      semnale:
+        - film_complet
+        - clip_rezumat
+        - drona
+        - echipa_2+_operatori
+    calitate_tehnica_echipament:
+      semnale:
+        - captare_4K_sau_1080p_bitrate_bun
+        - stabilizare # gimbal/monopied/trepied
+        - audio # lavaliera + feed mixer DJ + recorder backup
+        - profil_LOG + grading
+        - lumina_mobila
+    raport_pret_valoare:
+      descriere: "pret moderat + livrabile multe = scor bun"
+  levels_labels:
+    - range: "85-100"
+      nivel: "⭐ Top recomandat"
+      eticheta_ai: "Videograf profesionist, foarte solicitat"
+    - range: "70-84"
+      nivel: "👍 Stabil si experimentat"
+      eticheta_ai: "Recomandat des de sali, livrare rapida"
+    - range: "50-69"
+      nivel: "⚙️ Mediu"
+      eticheta_ai: "Oferta echilibrata, experienta moderata"
+    - range: "<50"
+      nivel: "🌱 In crestere"
+      eticheta_ai: "Videograf nou sau cu putine recomandari"
+  outputs_explain_compare_axes:
+    - Stil
+    - Ore_acoperire
+    - Livrabile # teaser, clip, full
+    - Operatorii # 1 vs 2
+    - Drona
+    - Termene
+    - Recomandari_sali
+    - Experienta # ani + evenimente/an
+    - Echipament
+    - Pret_si_valoare
+  recommendation_strategy:
+    good_better_best: true
+    nota: "Propune 3 optiuni (Good/Better/Best) in functie de stil, nivel, operatori si buget."
+
+FV#:
+  version: 1.0
+  category: "Echipa Foto+Video"
+  decision_inputs:
+    required:
+      - data_sau_interval
+      - locatii # biserica / sedinta / sala + adrese + timpi transfer
+      - nr_invitati
+      - buget_total_FV
+      - preferinta_echipa_completa # echipa FV sau furnizori separati
+      - dorinta_drona # da/nu
+      - configuratie_echipa # 1_foto+1_video vs echipa_extinsa_2plus
+      - pachet_album_si_clip # da/nu
+      - after_party # da/nu
+      - stil_foto_preferat
+      - stil_video_preferat
+      - ore_acoperire
+      - termene_dorite # foto + video
+      - limba_comunicare
+      - politici_confidentialitate # no-share, licente muzica, GDPR/minori
+  hard_filters:
+    - disponibilitate_la_data
+    - acoperire_zona_si_deplasare
+    - capacitate_orara_si_multilocatie
+    - reguli_locatii_si_legal # drona NFZ/licenta/asigurare; restrictii biserica
+    - regula_buget: "nu recomanda > +25% peste buget tinta decat daca scor_final >= 85"
+  rating_weights: # suma 100 (aliniate cu V#)
+    recomandari_sali: 25
+    ani_experienta_ca_echipa: 20
+    evenimente_pe_an_ca_echipa: 15
+    complexitate_pachet: 15 # foto+video + drona + clip + album
+    termene_livrare_combinat: 10 # foto + video
+    raport_pret_valoare: 10
+    calitate_tehnica_echipament: 5
+  scoring_guidelines:
+    recomandari_sali:
+      praguri:
+        buni: "1-2 sali"
+        foarte_buni: ">= 3 sali"
+      nota: "Cel mai important indicator de incredere locala."
+    ani_experienta_ca_echipa:
+      scale: "1-3 noua; 4-7 stabila; 8+ profesionistă"
+    evenimente_pe_an_ca_echipa:
+      scale: "15-20 activi; 25+ foarte_solicitati"
+    termene_livrare_combinat:
+      scale: "<= 2 luni excelent; 2-3 luni standard; 4+ luni lent"
+    complexitate_pachet:
+      semnale:
+        - foto_si_video
+        - drona
+        - clip_rezumat
+        - album
+        - echipa_extinsa
+    calitate_tehnica_echipament:
+      semnale:
+        - captare_4K_sau_1080p_bitrate_bun
+        - stabilizare
+        - audio_profesionist
+        - profil_LOG + grading
+        - lumini_profesionale
+    raport_pret_valoare:
+      descriere: "pachet comun de regula 10-20% mai avantajos vs separat"
+  levels_labels:
+    - range: "85-100"
+      nivel: "⭐ Top echipa recomandata"
+      eticheta_ai: "Echipa completa, foarte solicitata"
+    - range: "70-84"
+      nivel: "👍 Stabila si experimentata"
+      eticheta_ai: "Recomandata des, livrare rapida"
+    - range: "50-69"
+      nivel: "⚙️ Medie"
+      eticheta_ai: "Oferta buna, experienta moderata"
+    - range: "<50"
+      nivel: "🌱 In crestere"
+      eticheta_ai: "Echipa noua sau cu putine recomandari"
+  explain_variants:
+    separat_vs_echipa:
+      varianta_separat_pro:
+        - "Alegi stiluri distincte (ex: foto romantic, video cinematic)."
+      varianta_separat_contra:
+        - "Necesita coordonare intre echipe diferite."
+      varianta_echipa_pro:
+        - "Sinergie pe teren; timeline sincron; un singur punct de contact."
+        - "Pret de pachet de obicei cu ~10-20% mai avantajos."
+      varianta_echipa_contra:
+        - "Stilul foto & video vine la pachet, mai putina libertate de combinare."
+  outputs_explain_compare_axes:
+    - Stil_Foto
+    - Stil_Video
+    - Ore_acoperire
+    - Livrabile # album, nr foto, teaser/clip/full
+    - Operatorii # configuratie echipa
+    - Drona
+    - Termene # foto + video
+    - Recomandari_sali
+    - Experienta # ani + evenimente/an (ca echipa)
+    - Echipament
+    - Pret_si_valoare
+  recommendation_strategy:
+    good_better_best: true
+    nota: "Propune 3 optiuni (Good/Better/Best) si explica diferenta dintre separat si echipa."
+
+shared_behavior_FV:
+  alerts_and_risks:
+    - "Drona nepermisa sau meteo nefavorabil fara plan B."
+    - "Termene promise nerealiste (ex: full video < 2 luni fara echipa extinsa)."
+    - "Lipsa backup audio (video) sau lipsa dual-slot (foto)."
+    - "Politici RAW/licente muzica neclare."
+  budget_optimization:
+    - "Reduce orele in intervalele fara momente majore."
+    - "Album dupa nunta (cost separat)."
+    - "Considera echipa FV daca raport pret/valoare este mai bun."
+    - "Teaser rapid contra cost + social pack scurt, pastrand termene normale pentru rest."
+  good_better_best:
+    enable: true
+    rule_of_thumb: "3 optiuni calibrate pe stil, nivel si incadrare in buget."
